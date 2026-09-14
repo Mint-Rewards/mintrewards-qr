@@ -1,6 +1,16 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import Link from "next/link";
+import { useActionState, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { IdCard } from "lucide-react";
+import {
+  clearRegistration,
+  parseRegistration,
+  readRegistrationRaw,
+  subscribeToRegistration,
+  writeRegistration,
+  type StoredRegistration,
+} from "@/lib/ambassador/registration-storage";
 import {
   submitAmbassadorRegistration,
   type AmbassadorRegistrationResult,
@@ -33,8 +43,40 @@ export function AmbassadorRegistrationForm({
   const [state, formAction, pending] = useActionState(action, initialState);
   const [universityId, setUniversityId] = useState("");
 
+  /**
+   * localStorage does not exist on the server, so the server snapshot is null and the
+   * stored value only appears after hydration -- which is what keeps the markup React
+   * hydrates against identical on both sides.
+   */
+  const raw = useSyncExternalStore(
+    subscribeToRegistration,
+    () => readRegistrationRaw(trackingCode),
+    () => null,
+  );
+  const returning = useMemo(() => parseRegistration(raw), [raw]);
+
+  useEffect(() => {
+    if (!state.success) return;
+    writeRegistration(trackingCode, {
+      ambassadorId: state.success.ambassadorId,
+      fullName: state.success.fullName,
+    });
+  }, [state.success, trackingCode]);
+
   if (state.success) {
     return <AmbassadorCardSuccess {...state.success} />;
+  }
+
+  if (returning) {
+    return (
+      <ReturningAmbassador
+        registration={returning}
+        // A phone passed around a campus stall is the normal case, not an edge one:
+        // the next student must be able to register on the same device. Clearing
+        // notifies the store, so no local state needs to mirror it.
+        onStartOver={() => clearRegistration(trackingCode)}
+      />
+    );
   }
 
   const years = batchYearOptions();
@@ -127,5 +169,52 @@ export function AmbassadorRegistrationForm({
         </CardContent>
       </Card>
     </form>
+  );
+}
+
+/**
+ * Shown when this device has registered for this campaign before, in place of a blank
+ * form that would produce a duplicate.
+ */
+function ReturningAmbassador({
+  registration,
+  onStartOver,
+}: {
+  registration: StoredRegistration;
+  onStartOver: () => void;
+}) {
+  const firstName = registration.fullName.trim().split(/\s+/)[0];
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 pt-6 text-center">
+        <IdCard className="text-primary mx-auto size-8" />
+        <div>
+          <h2 className="font-semibold">
+            {firstName ? `Welcome back, ${firstName}!` : "You're already registered"}
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            You&apos;ve already joined this campaign. Your Mint Ambassador card is ready
+            whenever you want to share it.
+          </p>
+        </div>
+
+        <Button
+          size="lg"
+          className="w-full"
+          render={<Link href={`/a/card/${registration.ambassadorId}`} />}
+        >
+          View my card
+        </Button>
+
+        <button
+          type="button"
+          onClick={onStartOver}
+          className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
+        >
+          Not you? Register someone else
+        </button>
+      </CardContent>
+    </Card>
   );
 }

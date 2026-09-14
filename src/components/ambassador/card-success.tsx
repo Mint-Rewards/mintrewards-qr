@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/common/copy-button";
 import type { AmbassadorStatus } from "@/lib/ambassador/config";
 import { linkedInShareUrl } from "@/lib/ambassador/share";
 
@@ -208,6 +209,13 @@ export function AmbassadorCardSuccess({
             </Button>
           </div>
         )}
+      </div>
+
+      {/* Browser storage brings them back when they re-scan on this device, but it is
+          cleared, per-browser and absent in private mode. A link they can save is the
+          fallback that survives all three. */}
+      <div className="flex items-center justify-center gap-2">
+        <CopyButton value={cardPageUrl} label="Copy card link" />
       </div>
 
       <p className="text-muted-foreground text-xs leading-relaxed">
