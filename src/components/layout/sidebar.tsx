@@ -7,6 +7,7 @@ import {
   Users,
   QrCode,
   ScanLine,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,15 +15,16 @@ import { cn } from "@/lib/utils";
 /**
  * Persistent primary navigation.
  *
- * Four destinations, always visible, never nested. The operator runs this while
- * coordinating field staff on the phone, so every section stays exactly one click away
- * rather than being tucked behind a menu.
+ * Always visible, never nested. The operator runs this while coordinating field staff
+ * on the phone, so every section stays exactly one click away rather than being
+ * tucked behind a menu.
  */
 const NAV: { href: string; label: string; icon: LucideIcon; hint: string }[] = [
   { href: "/dashboard",    label: "Dashboard",    icon: LayoutDashboard, hint: "Scan activity at a glance" },
   { href: "/team-members", label: "Team Members", icon: Users,           hint: "Field onboarding staff" },
   { href: "/assignments",  label: "Assignments",  icon: QrCode,          hint: "Standees and QR codes" },
   { href: "/scans",        label: "Scan Events",  icon: ScanLine,        hint: "Raw scan log and export" },
+  { href: "/ambassadors",  label: "Mint Ambassadors", icon: GraduationCap, hint: "Student ambassador sign-ups" },
 ];
 
 export function Sidebar() {

@@ -37,6 +37,16 @@ const serverSchema = z.object({
   STANDEE_TEMPLATE_STORAGE_PATH: z.string().default("templates"),
   GENERATED_STANDEES_BUCKET: z.string().default("generated-standees"),
   QR_IMAGES_BUCKET: z.string().default("qr-images"),
+
+  /**
+   * PUBLIC bucket, unlike the two above. Ambassador cards are meant to be reshared on
+   * LinkedIn/Instagram, and link-preview crawlers fetch the image unauthenticated,
+   * whenever someone eventually views the post -- long after any signed URL would
+   * have expired. The card contains only what the student chose to submit and is
+   * about to post publicly themselves, so this is an intentional, narrow exception to
+   * "storage stays private."
+   */
+  AMBASSADOR_CARDS_BUCKET: z.string().default("ambassador-cards"),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -65,6 +75,11 @@ export function qrBaseUrl(): string {
 
 export function buildTrackingUrl(platform: "ios" | "android", trackingCode: string): string {
   return `${qrBaseUrl()}/r/${platform}/${trackingCode}`;
+}
+
+/** Public registration-form URL encoded into an ambassador campaign's QR code. */
+export function buildAmbassadorUrl(trackingCode: string): string {
+  return `${qrBaseUrl()}/a/${trackingCode}`;
 }
 
 export function destinationUrlFor(platform: "ios" | "android"): string {

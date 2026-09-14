@@ -124,6 +124,71 @@ export interface TeamMemberPerformance {
   last_scan_at: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Mint Ambassador program
+// ---------------------------------------------------------------------------
+
+export type AmbassadorCampaignStatus =
+  | "draft" | "active" | "paused" | "completed" | "archived";
+export type AmbassadorStatus = "student" | "alumnus";
+
+/** Must stay in step with the CHECK constraint in 0004_ambassadors.sql. */
+export const AMBASSADOR_CAMPAIGN_STATUSES = [
+  { value: "draft",     label: "Draft" },
+  { value: "active",    label: "Active" },
+  { value: "paused",    label: "Paused" },
+  { value: "completed", label: "Completed" },
+  { value: "archived",  label: "Archived" },
+] as const;
+
+export interface AmbassadorCampaign {
+  id: string;
+  title: string;
+  event_name: string | null;
+  event_date: string | null;
+  location_name: string | null;
+  city: string | null;
+  status: AmbassadorCampaignStatus;
+  tracking_code: string;
+  tracking_url: string;
+  reference_code: string;
+  qr_image_path: string | null;
+  share_caption: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MintAmbassador {
+  id: string;
+  campaign_id: string;
+  full_name: string;
+  university: string;
+  batch_year: number;
+  ambassador_status: AmbassadorStatus;
+  card_file_path: string | null;
+  created_at: string;
+}
+
+export interface AmbassadorCampaignPerformance {
+  campaign_id: string;
+  title: string;
+  reference_code: string;
+  event_name: string | null;
+  event_date: string | null;
+  location_name: string | null;
+  city: string | null;
+  status: AmbassadorCampaignStatus;
+  total_views: number;
+  total_registrations: number;
+  student_count: number;
+  alumnus_count: number;
+  conversion_pct: number | null;
+  last_registration_at: string | null;
+  created_at: string;
+}
+
 export function labelFor(
   options: readonly { value: string; label: string }[],
   value: string | null | undefined,

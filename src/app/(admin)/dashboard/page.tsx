@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { QrCode, ScanLine, Apple, Smartphone } from "lucide-react";
+import { QrCode, ScanLine, Apple, Smartphone, GraduationCap } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +18,22 @@ interface Totals {
   scans_today: number;
 }
 
+interface AmbassadorTotals {
+  total_campaigns: number;
+  active_campaigns: number;
+  total_ambassadors: number;
+  student_ambassadors: number;
+  alumnus_ambassadors: number;
+  total_views: number;
+  registrations_last_7d: number;
+}
+
 export default async function DashboardPage() {
   const supabase = await createServerSupabase();
 
-  // Aggregation happens in SQL (see 0003_views.sql) rather than being reassembled here
-  // across several round trips.
-  const [{ data: totals }, { data: topMembers }, { data: topAssignments }] =
+  // Aggregation happens in SQL (see 0003_views.sql and 0006_ambassador_views.sql)
+  // rather than being reassembled here across several round trips.
+  const [{ data: totals }, { data: topMembers }, { data: topAssignments }, { data: ambassadorTotals }] =
     await Promise.all([
       supabase.from("v_dashboard_totals").select("*").maybeSingle(),
       supabase
@@ -36,9 +46,11 @@ export default async function DashboardPage() {
         .select("assignment_id, title, location_name, city, total_scans, team_member_name")
         .order("total_scans", { ascending: false })
         .limit(5),
+      supabase.from("v_ambassador_dashboard_totals").select("*").maybeSingle(),
     ]);
 
   const t = (totals ?? {}) as Partial<Totals>;
+  const at = (ambassadorTotals ?? {}) as Partial<AmbassadorTotals>;
 
   return (
     <div className="space-y-6">
@@ -110,6 +122,25 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight">Mint Ambassador Program</h2>
+          <Link href="/ambassadors" className="text-muted-foreground hover:text-foreground text-xs">
+            View all
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Ambassadors" value={at.total_ambassadors} icon={GraduationCap}
+                sub={`${at.registrations_last_7d ?? 0} in the last 7 days`} />
+          <Stat label="Students" value={at.student_ambassadors} icon={GraduationCap}
+                sub={sharePct(at.student_ambassadors, at.total_ambassadors)} />
+          <Stat label="Alumni" value={at.alumnus_ambassadors} icon={GraduationCap}
+                sub={sharePct(at.alumnus_ambassadors, at.total_ambassadors)} />
+          <Stat label="Active campaigns" value={at.active_campaigns} icon={QrCode}
+                sub={`${at.total_campaigns ?? 0} total · ${at.total_views ?? 0} form views`} />
+        </div>
+      </section>
     </div>
   );
 }

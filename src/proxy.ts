@@ -10,8 +10,9 @@ import { createServerClient } from "@supabase/ssr";
  * gets silently signed out mid-task. This runs before every matched route, refreshes the
  * session, and redirects unauthenticated users to the login page.
  *
- * The `matcher` at the bottom deliberately EXCLUDES /r/ -- the public QR redirect must
- * never be gated by auth, and must not pay for a session lookup on the scan path.
+ * The `matcher` at the bottom deliberately EXCLUDES /r/ and /a/ -- the public QR
+ * redirect and the public ambassador registration form must never be gated by auth,
+ * and must not pay for a session lookup on those paths.
  */
 export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -67,10 +68,11 @@ export const config = {
     /*
      * Everything except:
      *  - /r/          public QR redirect (must stay fast and unauthenticated)
+     *  - /a/          public ambassador registration form + card pages
      *  - /api/        route handlers do their own auth checks
      *  - _next/*      framework assets
      *  - static files
      */
-    "/((?!r/|api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!r/|a/|api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

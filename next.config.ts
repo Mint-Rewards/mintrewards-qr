@@ -12,13 +12,18 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * The standee template is read at runtime by file name chosen from config, which
-   * static tracing cannot follow. Without this, the PDF is absent in production and
-   * standee generation fails with "template not found" only after deploy.
+   * Templates are read at runtime by a file name chosen from config, which static
+   * tracing cannot follow. Without this they are absent in production and generation
+   * fails with "template not found" only after deploy.
+   *
+   * `/a/[code]` is here because the ambassador registration server action -- which
+   * renders the card -- is bundled with the page that calls it.
    */
   outputFileTracingIncludes: {
     "/api/assignments/[id]/standee": ["./templates/**"],
     "/dev/standee-preview": ["./templates/**"],
+    "/a/[code]": ["./templates/**"],
+    "/dev/ambassador-card-preview": ["./templates/**"],
   },
 };
 
