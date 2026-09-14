@@ -53,7 +53,11 @@ export default async function AmbassadorCampaignDetailPage({
    * whatever domain is actually serving this page.
    */
   const trackingUrl = buildAmbassadorUrl(c.tracking_code);
-  const staleStoredUrl = c.tracking_url !== trackingUrl;
+
+  // Only worth flagging on a real deployment. Viewing a production campaign from a dev
+  // server always "differs", and warning about that every time would be pure noise.
+  const isLocalHost = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test(trackingUrl);
+  const staleStoredUrl = !isLocalHost && c.tracking_url !== trackingUrl;
 
   const qrPreview = await generateQrDataUrl(trackingUrl);
 
@@ -122,6 +126,13 @@ export default async function AmbassadorCampaignDetailPage({
               </div>
             </div>
           </div>
+          {isLocalHost && (
+            <p className="text-muted-foreground text-xs">
+              You are viewing this from a local server, so the QR above encodes a
+              <span className="font-mono"> localhost </span> address for testing. Open this
+              campaign on the deployed site to get the QR that is safe to share or print.
+            </p>
+          )}
           {staleStoredUrl && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
               <p className="text-xs text-amber-800 dark:text-amber-300">
