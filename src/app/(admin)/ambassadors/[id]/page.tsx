@@ -119,11 +119,23 @@ export default async function AmbassadorCampaignDetailPage({
               </div>
               <div className="flex flex-wrap gap-2">
                 <CopyButton value={trackingUrl} label="Copy URL" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<Link href={`/api/ambassadors/${c.id}/qr`} />}
+                >
+                  <Download className="size-4" />
+                  QR as SVG
+                </Button>
                 <Button variant="outline" size="sm" render={<Link href={trackingUrl} target="_blank" />}>
                   Open form
                 </Button>
                 <CampaignStatusActions campaignId={c.id} status={c.status} />
               </div>
+              <p className="text-muted-foreground text-xs">
+                SVG is vector — hand it to a designer and it stays sharp at any size, from
+                a sticker to a banner.
+              </p>
             </div>
           </div>
           {isLocalHost && (

@@ -32,3 +32,15 @@ export async function generateQrPng(
 export async function generateQrDataUrl(data: string, width = 320): Promise<string> {
   return QRCode.toDataURL(data, { ...QR_OPTIONS, width });
 }
+
+/**
+ * Vector QR, for handing to a designer.
+ *
+ * A PNG is fixed at whatever size it was rendered, so dropping one into a poster means
+ * either upscaling a blurry code or coming back for a bigger export. Paths scale to any
+ * size without resampling, and the modules stay crisp at billboard size or on a sticker
+ * -- which matters here because a soft-edged QR is a QR that phones struggle to read.
+ */
+export async function generateQrSvg(data: string): Promise<string> {
+  return QRCode.toString(data, { ...QR_OPTIONS, type: "svg" });
+}
