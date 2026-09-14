@@ -160,11 +160,24 @@ export interface AmbassadorCampaign {
   updated_at: string;
 }
 
+export interface University {
+  id: string;
+  name: string;
+  sector: "public" | "private";
+  city: string | null;
+  is_active: boolean;
+}
+
+/** The value the form submits when a student's campus is not on the list. */
+export const UNIVERSITY_OTHER = "other";
+
 export interface MintAmbassador {
   id: string;
   campaign_id: string;
   full_name: string;
   university: string;
+  /** Null when the student chose "Other" and typed their campus in. */
+  university_id: string | null;
   batch_year: number;
   ambassador_status: AmbassadorStatus;
   card_file_path: string | null;

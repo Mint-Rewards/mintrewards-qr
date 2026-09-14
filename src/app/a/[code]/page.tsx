@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidTrackingCodeShape } from "@/lib/tracking-code";
 import { extractClientIp, parseUserAgent } from "@/lib/user-agent";
 import { AmbassadorRegistrationForm } from "@/components/ambassador/registration-form";
+import type { University } from "@/lib/types";
 
 export const metadata = { title: "Become a Mint Ambassador · MintRewards" };
 export const dynamic = "force-dynamic";
@@ -40,6 +41,14 @@ export default async function AmbassadorFormPage({
     return <InvalidLink />;
   }
 
+  // Read through the service role: this list has no anonymous RLS policy, and the
+  // student filling the form is not signed in.
+  const { data: universities } = await admin
+    .from("universities")
+    .select("id, name, sector, city, is_active")
+    .eq("is_active", true)
+    .order("name");
+
   const requestHeaders = await headers();
   const userAgent = requestHeaders.get("user-agent");
   const parsed = parseUserAgent(userAgent);
@@ -73,7 +82,10 @@ export default async function AmbassadorFormPage({
           <h1 className="text-xl font-semibold tracking-tight">Become a Mint Ambassador</h1>
           <p className="text-muted-foreground text-sm">{campaign.title}</p>
         </header>
-        <AmbassadorRegistrationForm trackingCode={code} />
+        <AmbassadorRegistrationForm
+          trackingCode={code}
+          universities={(universities ?? []) as University[]}
+        />
       </div>
     </div>
   );

@@ -2,7 +2,10 @@
 
 import { headers } from "next/headers";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { UNIVERSITY_OTHER } from "@/lib/types";
+import { validateFullName, validateUniversityName } from "@/lib/ambassador/validation";
 import { isValidTrackingCodeShape } from "@/lib/tracking-code";
 import { extractClientIp } from "@/lib/user-agent";
 import { classifyBatch, type AmbassadorStatus } from "@/lib/ambassador/config";
@@ -23,10 +26,41 @@ export interface AmbassadorRegistrationResult {
 }
 
 const schema = z.object({
-  full_name: z.string().trim().min(2, "Enter your full name.").max(120),
-  university: z.string().trim().min(2, "Enter your university.").max(160),
+  full_name: z.string(),
+  university_id: z.string(),
+  university_other: z.string().optional(),
   batch_year: z.coerce.number().int().min(2000).max(2100),
 });
+
+/**
+ * Resolves the submitted campus to a stored name plus, where possible, a reference.
+ *
+ * A listed university's name is read back from the row rather than taken from the
+ * form, so the display name cannot be spoofed by editing the request: the client
+ * chooses WHICH campus, never what it is called.
+ */
+async function resolveUniversity(
+  admin: SupabaseClient,
+  universityId: string,
+  other: string | undefined,
+): Promise<{ name: string; id: string | null } | { error: string }> {
+  if (universityId === UNIVERSITY_OTHER) {
+    const validated = validateUniversityName(other ?? "");
+    if (!validated.ok) return { error: validated.error };
+    return { name: validated.value, id: null };
+  }
+
+  const { data } = await admin
+    .from("universities")
+    .select("id, name, is_active")
+    .eq("id", universityId)
+    .maybeSingle();
+
+  if (!data || !data.is_active) {
+    return { error: "Please choose your university from the list." };
+  }
+  return { name: data.name, id: data.id };
+}
 
 /**
  * Public registration submission. No authentication -- runs from the /a/[code] form.
@@ -47,14 +81,25 @@ export async function submitAmbassadorRegistration(
 
   const parsed = schema.safeParse({
     full_name: formData.get("full_name"),
-    university: formData.get("university"),
+    university_id: formData.get("university_id"),
+    university_other: formData.get("university_other") ?? undefined,
     batch_year: formData.get("batch_year"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check your details." };
   }
 
+  const name = validateFullName(parsed.data.full_name);
+  if (!name.ok) return { error: name.error };
+
   const admin = createAdminClient();
+
+  const resolved = await resolveUniversity(
+    admin,
+    parsed.data.university_id,
+    parsed.data.university_other,
+  );
+  if ("error" in resolved) return { error: resolved.error };
 
   const { data: campaign, error: campaignError } = await admin
     .from("ambassador_campaigns")
@@ -66,7 +111,9 @@ export async function submitAmbassadorRegistration(
     return { error: "This registration link is no longer active." };
   }
 
-  const { full_name, university, batch_year } = parsed.data;
+  const { batch_year } = parsed.data;
+  const full_name = name.value;
+  const university = resolved.name;
   const status = classifyBatch(batch_year);
 
   const requestHeaders = await headers();
@@ -77,6 +124,7 @@ export async function submitAmbassadorRegistration(
       campaign_id: campaign.id,
       full_name,
       university,
+      university_id: resolved.id,
       batch_year,
       ambassador_status: status,
       ip_address: extractClientIp(requestHeaders),

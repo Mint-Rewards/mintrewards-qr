@@ -65,6 +65,7 @@ psql "$DATABASE_URL" -f supabase/migrations/0003_views.sql           # analytics
 psql "$DATABASE_URL" -f supabase/migrations/0004_ambassadors.sql     # Mint Ambassador tables
 psql "$DATABASE_URL" -f supabase/migrations/0005_ambassadors_rls.sql # Mint Ambassador RLS
 psql "$DATABASE_URL" -f supabase/migrations/0006_ambassador_views.sql # Mint Ambassador views
+psql "$DATABASE_URL" -f supabase/migrations/0007_universities.sql    # university list + seed
 ```
 
 Supabase direct connections are IPv6-only; from an IPv4 network use the pooler host
@@ -202,6 +203,22 @@ but is a distinct flow end to end:
 Validates the tracking code, looks up the campaign, logs a view (`ambassador_scan_events`,
 via `after()`, same "never delay the page" rule as the redirect route), and renders a form
 asking for name, university and batch year.
+
+**University is a pick-list**, not free text, seeded with 73 major Pakistani campuses
+(`universities`, 44 public / 29 private) plus an **Other** option that reveals a text
+field. Free text made the programme's central question unanswerable — "LUMS", "Lums" and
+"Lahore University of Management Sciences" are one campus and three rows — so listed
+picks also store a `university_id` foreign key, and only genuine long-tail entries are
+text. The list is seeded, not exhaustive; extend it in the `universities` table.
+
+**Names are validated** (`src/lib/ambassador/validation.ts`): letters, spaces, hyphens,
+apostrophes and full stops only, 2–60 characters, with cheap keyboard-mashing checks
+(tripled letters, home-row runs, long unvowelled runs). Latin-only is deliberate — the
+card renders through Liberation Sans, which has no Urdu glyphs, so an Urdu-script name
+would silently come out as empty boxes on the card rather than being caught at the form.
+`tests/ambassador-validation.test.ts` guards the false-rejection side, which matters more:
+a student whose real name is refused just leaves, while junk that gets through is visible
+to an admin on the roster.
 
 On submit (`submitAmbassadorRegistration`, a server action using the service-role client —
 `mint_ambassadors` has no client insert policy, same asymmetry as `qr_scan_events`):
