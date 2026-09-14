@@ -90,7 +90,7 @@ describe("ambassador card generation", () => {
     ["name", { fullName: "Zainab Fatima Sheikh" }, ROWS.name],
     ["university", { university: "Institute of Business Administration" }, ROWS.university],
     ["batch", { batchYear: 2019 }, ROWS.batch],
-  ])("stamps the %s into its row on the template", async (_label, override, row) => {
+  ])("stamps the %s onto its ruled line", async (_label, override, row) => {
     const [before, after] = await Promise.all([
       generateAmbassadorCardJpg(base),
       generateAmbassadorCardJpg({ ...base, ...override }),
@@ -101,16 +101,20 @@ describe("ambassador card generation", () => {
     // Rendered at all -- a host with no fonts would produce identical cards here.
     expect(diff.found).toBe(true);
 
-    // Sits below its printed label and above the rule that closes the row.
-    expect(diff.minY).toBeGreaterThan(row.labelBaseline);
-    expect(diff.maxY).toBeLessThan(row.floor);
+    // Sits in its own row, below whatever precedes it...
+    expect(diff.minY).toBeGreaterThan(row.ceiling);
+    // ...and RESTS ON its rule. Both bounds matter: only checking that the text is
+    // above the line lets it float anywhere up the card and still pass, so the lower
+    // bound is what actually pins it to the design.
+    expect(diff.maxY).toBeLessThan(row.rule + TOLERANCE_PX);
+    expect(diff.maxY).toBeGreaterThan(row.rule - MAX_RULE_GAP);
 
-    // And inside the panel, not running over its border.
-    expect(diff.minX).toBeGreaterThan(PANEL.left);
-    expect(diff.maxX).toBeLessThan(PANEL.right - PANEL.inset);
+    // And within the horizontal span of that rule.
+    expect(diff.minX).toBeGreaterThan(row.left - TOLERANCE_PX);
+    expect(diff.maxX).toBeLessThan(row.right + TOLERANCE_PX);
   });
 
-  it("keeps an unusually long name inside the panel instead of overflowing", async () => {
+  it("keeps an unusually long name within its rule instead of overflowing", async () => {
     const [before, after] = await Promise.all([
       generateAmbassadorCardJpg(base),
       generateAmbassadorCardJpg({
@@ -122,8 +126,8 @@ describe("ambassador card generation", () => {
     const diff = await diffBounds(before, after);
 
     expect(diff.found).toBe(true);
-    expect(diff.maxX).toBeLessThan(PANEL.right - PANEL.inset);
-    expect(diff.maxY).toBeLessThan(ROWS.name.floor);
+    expect(diff.maxX).toBeLessThan(ROWS.name.right + TOLERANCE_PX);
+    expect(diff.maxY).toBeLessThan(ROWS.name.rule + TOLERANCE_PX);
   });
 
   it("does not let unescaped input break the composited overlay", async () => {
@@ -167,21 +171,31 @@ describe("ambassador sharing", () => {
  * Asserting a render against the same constants that produced it proves nothing: move
  * NAME_BOX.y by 100 px and both the text and the expectation move together, so the
  * test passes while the card is wrong. These numbers instead describe what is painted
- * into the template itself (the field labels, the divider rules, the panel border), so
- * they stay fixed while card-config.ts varies -- which is what makes a mis-calibrated
+ * into Ambassador Design 2 itself -- the three ruled lines the values sit on -- so they
+ * stay fixed while card-config.ts varies, which is what makes a mis-calibrated
  * coordinate fail here.
  *
- * RE-MEASURE THESE when the real designed template replaces the stand-in, exactly as
- * the standee's QR boxes are re-measured against a new template.
+ * The rules were found by scanning the raster for rows of grey pixels:
+ *   y=1300 (x 80..788), y=1402 (x 80..560), y=1488 (x 80..560).
+ *
+ * RE-MEASURE THESE whenever the template changes, exactly as the standee's QR boxes
+ * are re-measured against a new template.
  */
-const PANEL = { left: 80, right: 1000, inset: 20 };
+const TOLERANCE_PX = 8;
+
+/**
+ * Furthest a value's lowest pixel may sit above its rule before it reads as floating
+ * rather than written on the line. Capitals bottom out on the baseline, which
+ * card-config lifts 16 px clear of the rule.
+ */
+const MAX_RULE_GAP = 40;
 
 const ROWS = {
-  // labelBaseline: the row's printed label. floor: the divider rule below it (the
-  // panel's bottom edge, for the last row).
-  name: { labelBaseline: 580, floor: 695 },
-  university: { labelBaseline: 763, floor: 878 },
-  batch: { labelBaseline: 946, floor: 1062 },
+  // ceiling: nothing for this value may be drawn above it. rule: the printed line the
+  // value rests on -- text must stay above it, never through or below it.
+  name: { ceiling: 1100, rule: 1300, left: 80, right: 788 },
+  university: { ceiling: 1302, rule: 1402, left: 80, right: 560 },
+  batch: { ceiling: 1404, rule: 1488, left: 80, right: 560 },
 };
 
 /** Bounding box of the pixels that differ between two renders of the same card. */

@@ -52,7 +52,8 @@ export async function generateAmbassadorCardJpg(
   const [name, university, batch] = await Promise.all([
     renderLine(NAME_BOX, input.fullName),
     renderLine(UNIVERSITY_BOX, input.university),
-    renderLine(BATCH_BOX, String(input.batchYear)),
+    // The design's third line reads "Batch 2027", not a bare year.
+    renderLine(BATCH_BOX, `Batch ${input.batchYear}`),
   ]);
 
   const overlay =
@@ -114,8 +115,12 @@ function loadFont(fileName: string): Promise<Font> {
 }
 
 async function renderLine(box: TextBox, rawValue: string): Promise<string> {
-  const value = rawValue.trim();
-  if (!value) return "";
+  const trimmed = rawValue.trim();
+  if (!trimmed) return "";
+
+  // Uppercase before measuring: capitals are wider, so fitting the original casing
+  // would let the rendered name overrun its rule.
+  const value = box.uppercase ? trimmed.toUpperCase() : trimmed;
 
   const font = await loadFont(
     box.fontWeight >= BOLD_THRESHOLD ? FONT_BOLD_FILE : FONT_REGULAR_FILE,
