@@ -87,8 +87,15 @@ export function AmbassadorCardSuccess({
    * -- neither can carry an attachment. The OS sheet can, so on mobile this is the
    * primary path and the per-network links are the desktop fallback.
    *
-   * Instagram ignores the text a share sheet passes, so the caption still goes to the
-   * clipboard for pasting.
+   * The file is shared ALONE -- no `text`, no `title`.
+   *
+   * An Android share intent carrying both EXTRA_STREAM and EXTRA_TEXT leaves the
+   * receiving app to choose, and LinkedIn picks the text and silently discards the
+   * image: the post goes out as a caption with no card, which is the opposite of what
+   * anyone wants here. Sending only the file makes it unambiguously an image share.
+   *
+   * The caption therefore always travels via the clipboard -- which Instagram required
+   * anyway, since it ignores share-sheet text regardless.
    */
   async function nativeShare() {
     const file = cardFile.current;
@@ -97,17 +104,12 @@ export function AmbassadorCardSuccess({
     setBusy(true);
 
     // Fire-and-forget: awaiting the clipboard here would break the gesture chain that
-    // navigator.share() requires on iOS Safari. Instagram drops the text a share sheet
-    // passes, so having the caption on the clipboard is what makes it recoverable.
+    // navigator.share() requires on iOS Safari.
     void navigator.clipboard?.writeText(shareCaption).catch(() => {});
 
     try {
-      await navigator.share({
-        files: [file],
-        text: shareCaption,
-        title: "Mint Ambassador",
-      });
-      toast.success("Caption copied too — paste it if the app didn't fill it in.");
+      await navigator.share({ files: [file] });
+      toast.success("Caption copied — paste it into the post.");
     } catch (err) {
       // Dismissing the sheet throws AbortError; that is not a failure worth reporting.
       if ((err as Error)?.name !== "AbortError") {
@@ -201,7 +203,7 @@ export function AmbassadorCardSuccess({
 
       <p className="text-muted-foreground text-xs leading-relaxed">
         {canShareFile
-          ? "Share opens your phone's share sheet with the card already attached — pick LinkedIn or Instagram there. Your caption is copied at the same time, since Instagram ignores pre-filled text."
+          ? "Share opens your phone's share sheet with the card attached — pick LinkedIn or Instagram there, then paste the caption we copied for you."
           : "Neither network lets us pre-fill a post, so we copy your caption to the clipboard and download the card — paste the caption and attach the image."}
       </p>
     </div>
