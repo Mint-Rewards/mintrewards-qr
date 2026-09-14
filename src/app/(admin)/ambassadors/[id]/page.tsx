@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Download } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { buildAmbassadorUrl } from "@/lib/env";
 import { generateQrDataUrl } from "@/lib/qr";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -41,7 +42,20 @@ export default async function AmbassadorCampaignDetailPage({
   const p = (perf ?? {}) as Partial<AmbassadorCampaignPerformance>;
   const ambassadors = (roster ?? []) as MintAmbassador[];
 
-  const qrPreview = await generateQrDataUrl(c.tracking_url);
+  /**
+   * The QR is built from the tracking CODE plus the CURRENT environment's base URL,
+   * not from the stored tracking_url.
+   *
+   * tracking_url records the domain in force when the campaign was created, so a
+   * campaign created against a dev server keeps `http://localhost:3000` forever and
+   * its QR is dead everywhere else. The code is the permanent identifier; the URL is
+   * just how it is addressed, so deriving it here means the QR always points at
+   * whatever domain is actually serving this page.
+   */
+  const trackingUrl = buildAmbassadorUrl(c.tracking_code);
+  const staleStoredUrl = c.tracking_url !== trackingUrl;
+
+  const qrPreview = await generateQrDataUrl(trackingUrl);
 
   return (
     <div className="space-y-6">
@@ -95,19 +109,29 @@ export default async function AmbassadorCampaignDetailPage({
               </div>
               <div className="min-w-0">
                 <div className="text-muted-foreground text-xs">Tracking URL</div>
-                <div className="truncate font-mono text-xs" title={c.tracking_url}>
-                  {c.tracking_url}
+                <div className="truncate font-mono text-xs" title={trackingUrl}>
+                  {trackingUrl}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <CopyButton value={c.tracking_url} label="Copy URL" />
-                <Button variant="outline" size="sm" render={<Link href={c.tracking_url} target="_blank" />}>
+                <CopyButton value={trackingUrl} label="Copy URL" />
+                <Button variant="outline" size="sm" render={<Link href={trackingUrl} target="_blank" />}>
                   Open form
                 </Button>
                 <CampaignStatusActions campaignId={c.id} status={c.status} />
               </div>
             </div>
           </div>
+          {staleStoredUrl && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                This campaign was created under a different domain
+                (<span className="font-mono">{c.tracking_url}</span>). The QR above uses the
+                current one and works — but any copy shared or printed earlier points at the
+                old address and is dead.
+              </p>
+            </div>
+          )}
           {c.status !== "active" && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
               <p className="text-xs text-amber-800 dark:text-amber-300">
