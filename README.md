@@ -228,18 +228,40 @@ estimated**: the raster was scanned for rows of grey pixels, putting the rules a
 so the text rests on the line. The name is set in capitals in the card's teal, matching the
 design.
 
-To swap in a different design:
+### Updating the design
 
-1. Flatten it to `templates/ambassador-card-background.jpg`
-   (`pdftoppm -jpeg -r 144 design.pdf out` for a PDF at 2×, or export from Figma/PSD/AI).
-2. Set `CARD_WIDTH`/`CARD_HEIGHT` in `src/lib/ambassador/card-config.ts` to its real pixel
-   size — generation **throws** if they disagree rather than stamping text in the wrong
-   place.
-3. Re-measure `NAME_BOX`/`UNIVERSITY_BOX`/`BATCH_BOX` against the new file, and re-measure
-   the `ROWS` constants in `tests/ambassador.test.ts` (which describe the template, not the
-   config — see below).
-4. Check it at `/dev/ambassador-card-preview` (auth required; `?name=`, `?university=` and
-   `?batchYear=` override the dummy data), then run `npm test`.
+Drop the new artwork in at `templates/Ambassador Design 2.pdf` — same path, same name —
+and run:
+
+```bash
+npm run build:card-template     # needs poppler (pdftoppm)
+```
+
+That re-flattens the background at 144 dpi and then **re-measures the ruled lines**,
+reporting whether the layout still matches what `card-config.ts` is calibrated to:
+
+```
+Ruled lines found in the new artwork:
+  y=1300  x=80..788
+  y=1402  x=80..560
+  y=1488  x=80..560
+
+Layout unchanged — existing calibration still applies.
+```
+
+If the artwork only changes wording or colour, that's the whole job — commit the
+regenerated JPG and you're done. If the script reports moved rules or a changed page
+size, re-measure `NAME_BOX`/`UNIVERSITY_BOX`/`BATCH_BOX` in
+`src/lib/ambassador/card-config.ts` and the `ROWS` constants in `tests/ambassador.test.ts`
+(which describe the template, not the config — see below) against the numbers it printed.
+Generation **throws** on a page-size change rather than stamping text in the wrong place.
+
+Then check it at `/dev/ambassador-card-preview` (auth required; `?name=`, `?university=`
+and `?batchYear=` override the dummy data) and run `npm test`.
+
+> **Known issue in the current artwork:** the heading reads **"MINT ABASSADOR"** — missing
+> the M. It is baked into the supplied PDF, so it can only be fixed in the design file and
+> re-flattened with the command above.
 
 Values are **measured, then fitted**: each line is rendered and trimmed to get its true
 width, shrunk proportionally if it exceeds its slot, and truncated only once it hits
