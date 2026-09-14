@@ -156,12 +156,33 @@ export function AmbassadorCardSuccess({
       />
 
       <div className="flex flex-col gap-2">
+        {/*
+          LinkedIn gets its own button rather than relying on the share sheet.
+          Its share extension does not accept a bare image: once the sheet carries only
+          the card, LinkedIn stops being offered at all (observed on iOS). It appeared
+          earlier only because the payload also carried text -- and in that case it took
+          the text and dropped the card, which is the failure this replaced.
+
+          share-offsite is the route LinkedIn genuinely supports for a third-party site:
+          the card reaches the post as the Open Graph image of /a/card/[id].
+        */}
         {canShareFile && (
           <Button size="lg" onClick={nativeShare} disabled={busy} className="w-full">
             <Share2 className="size-4" />
             {busy ? "Opening…" : "Share card"}
           </Button>
         )}
+
+        <Button
+          size="lg"
+          variant="outline"
+          onClick={shareLinkedIn}
+          disabled={busy}
+          className="w-full"
+        >
+          <Share2 className="size-4" />
+          Share on LinkedIn
+        </Button>
 
         <Button
           size="lg"
@@ -173,20 +194,8 @@ export function AmbassadorCardSuccess({
           Download card
         </Button>
 
-        {/* Two children sharing one row need flex-1, not w-full -- w-full makes each
-            100% of the container, so together they overflow it. */}
         {!canShareFile && (
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={shareLinkedIn}
-              disabled={busy}
-              className="min-w-0 flex-1"
-            >
-              <Share2 className="size-4" />
-              Share on LinkedIn
-            </Button>
             <Button
               size="lg"
               variant="outline"
@@ -203,7 +212,7 @@ export function AmbassadorCardSuccess({
 
       <p className="text-muted-foreground text-xs leading-relaxed">
         {canShareFile
-          ? "Share opens your phone's share sheet with the card attached — pick LinkedIn or Instagram there, then paste the caption we copied for you."
+          ? "Share card opens your phone's share sheet with the card attached — use it for Instagram and WhatsApp. LinkedIn has its own button because it won't accept an attached image. Either way, your caption is copied ready to paste."
           : "Neither network lets us pre-fill a post, so we copy your caption to the clipboard and download the card — paste the caption and attach the image."}
       </p>
     </div>
