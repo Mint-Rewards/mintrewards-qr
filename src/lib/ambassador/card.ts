@@ -1,12 +1,17 @@
 import "server-only";
 import sharp from "sharp";
+// Named import: opentype.js's ESM build (which Next resolves) has no default export,
+// even though its CJS build does.
+import { parse as parseFont, type Font } from "opentype.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
   AMBASSADOR_CARD_TEMPLATE_FILE,
+  BOLD_THRESHOLD,
   CARD_WIDTH,
   CARD_HEIGHT,
-  FONT_STACK,
+  FONT_BOLD_FILE,
+  FONT_REGULAR_FILE,
   MIN_FONT_SIZE,
   NAME_BOX,
   UNIVERSITY_BOX,
@@ -44,7 +49,7 @@ export async function generateAmbassadorCardJpg(
     );
   }
 
-  const lines = await Promise.all([
+  const [name, university, batch] = await Promise.all([
     renderLine(NAME_BOX, input.fullName),
     renderLine(UNIVERSITY_BOX, input.university),
     renderLine(BATCH_BOX, String(input.batchYear)),
@@ -52,7 +57,7 @@ export async function generateAmbassadorCardJpg(
 
   const overlay =
     `<svg width="${CARD_WIDTH}" height="${CARD_HEIGHT}" xmlns="http://www.w3.org/2000/svg">` +
-    lines.join("") +
+    name + university + batch +
     `</svg>`;
 
   return sharp(background)
@@ -79,84 +84,88 @@ async function loadTemplateFromDisk(): Promise<Buffer> {
   }
 }
 
+/** Parsed fonts are reused across requests; parsing a 400 KB TTF per card is wasteful. */
+const fontCache = new Map<string, Promise<Font>>();
+
+function loadFont(fileName: string): Promise<Font> {
+  const cached = fontCache.get(fileName);
+  if (cached) return cached;
+
+  const loading = (async () => {
+    const filePath = path.join(process.cwd(), "templates", "fonts", fileName);
+    let bytes: Buffer;
+    try {
+      bytes = await fs.readFile(filePath);
+    } catch {
+      throw new Error(
+        `Card font not found at ${filePath}. Ensure templates/fonts/ ships with the ` +
+          `deployment -- without it card text cannot be rendered.`,
+      );
+    }
+    // opentype needs a standalone ArrayBuffer; a Buffer may be a view into a larger
+    // pooled allocation, which would parse as garbage.
+    return parseFont(
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    );
+  })();
+
+  fontCache.set(fileName, loading);
+  return loading;
+}
+
 async function renderLine(box: TextBox, rawValue: string): Promise<string> {
-  const { value, fontSize } = await fitToBox(rawValue.trim(), box);
+  const value = rawValue.trim();
   if (!value) return "";
 
-  return (
-    `<text x="${box.x}" y="${box.y}" font-family="${FONT_STACK}" ` +
-    `font-size="${fontSize}" font-weight="${box.fontWeight}" fill="${box.color}">` +
-    `${escapeXml(value)}</text>`
+  const font = await loadFont(
+    box.fontWeight >= BOLD_THRESHOLD ? FONT_BOLD_FILE : FONT_REGULAR_FILE,
   );
+  const fitted = fitToBox(font, value, box);
+
+  // Glyph outlines, not <text>: nothing here depends on a font being installed on the
+  // machine that renders the card.
+  const outline = font.getPath(fitted.value, box.x, box.y, fitted.fontSize);
+  outline.fill = box.color;
+
+  return outline.toSVG(2);
 }
 
 /**
  * Shrinks the value to fit its slot, then truncates if it still does not fit at
  * MIN_FONT_SIZE.
  *
- * The width is MEASURED, not estimated from a per-character average. Long names are
- * the norm here rather than an edge case, and an average is wrong by enough to push
- * text off the panel for exactly the names most likely to appear ("Muhammad Abdul
- * Rahman Khan" renders ~6% wider than a 0.56 em-ratio predicts). Since the card is a
- * public artefact a student posts to LinkedIn, overflow is not a defect worth
- * discovering in production.
+ * Widths come from the font's own advance metrics, so this is exact rather than
+ * estimated -- which matters because long names are the norm here, and a
+ * per-character average is wrong by enough to push text over the panel border for
+ * exactly the names most likely to appear.
  */
-async function fitToBox(
+function fitToBox(
+  font: Font,
   value: string,
   box: TextBox,
-): Promise<{ value: string; fontSize: number }> {
-  if (!value) return { value, fontSize: box.fontSize };
-
-  let width = await measureTextWidth(value, box.fontSize, box.fontWeight);
-  if (width <= box.width) return { value, fontSize: box.fontSize };
-
-  // Glyph widths scale linearly with font size, so one proportional correction lands
-  // within a pixel or two rather than needing a search.
-  const fontSize = Math.max(MIN_FONT_SIZE, Math.floor((box.fontSize * box.width) / width));
-  width = await measureTextWidth(value, fontSize, box.fontWeight);
-  if (width <= box.width) return { value, fontSize };
-
-  // Only reachable at the MIN_FONT_SIZE floor. Derive the character budget from what
-  // was actually measured instead of guessing again.
-  const perChar = width / value.length;
-  const maxChars = Math.max(1, Math.floor(box.width / perChar) - 1);
-  return { value: `${value.slice(0, maxChars)}…`, fontSize };
-}
-
-/** Renders the text alone and trims the transparent margin to get its true width. */
-async function measureTextWidth(
-  value: string,
-  fontSize: number,
-  fontWeight: number,
-): Promise<number> {
-  const pad = fontSize;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH * 3}" height="${fontSize * 3}">` +
-    `<text x="${pad}" y="${fontSize * 2}" font-family="${FONT_STACK}" font-size="${fontSize}" ` +
-    `font-weight="${fontWeight}" fill="#ffffff">${escapeXml(value)}</text></svg>`;
-
-  try {
-    const { info } = await sharp(Buffer.from(svg))
-      .trim()
-      .toBuffer({ resolveWithObject: true });
-    return info.width;
-  } catch {
-    // sharp throws when the render is entirely blank (e.g. a value of only spaces).
-    return 0;
+): { value: string; fontSize: number } {
+  if (font.getAdvanceWidth(value, box.fontSize) <= box.width) {
+    return { value, fontSize: box.fontSize };
   }
-}
 
-/**
- * Names and universities are public, unauthenticated form input. Without escaping, a
- * value containing `<` or `&` would corrupt the SVG and break rendering outright.
- */
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  // Advance widths scale linearly with font size, so one proportional correction is exact.
+  const scaled = Math.floor(
+    (box.fontSize * box.width) / font.getAdvanceWidth(value, box.fontSize),
+  );
+  const fontSize = Math.max(MIN_FONT_SIZE, scaled);
+  if (font.getAdvanceWidth(value, fontSize) <= box.width) {
+    return { value, fontSize };
+  }
+
+  // Only reachable at the MIN_FONT_SIZE floor: drop characters until the ellipsis fits.
+  let truncated = value;
+  while (
+    truncated.length > 1 &&
+    font.getAdvanceWidth(`${truncated}…`, fontSize) > box.width
+  ) {
+    truncated = truncated.slice(0, -1);
+  }
+  return { value: `${truncated}…`, fontSize };
 }
 
 /** Storage object path for a generated ambassador card. */

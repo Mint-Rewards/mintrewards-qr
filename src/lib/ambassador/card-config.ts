@@ -38,13 +38,24 @@ export interface TextBox {
 export const AMBASSADOR_CARD_TEMPLATE_FILE = "ambassador-card-background.jpg";
 
 /**
- * Must match the font the template itself was rendered with, and must be a font that
- * exists on the DEPLOYMENT host -- sharp renders SVG text through the system's
- * fontconfig, so a host with no fonts installed produces a card with blank value
- * slots. `tests/ambassador.test.ts` asserts stamped text actually changes pixels,
- * which is what catches that in CI rather than in a student's LinkedIn post.
+ * Fonts are BUNDLED and rendered as vector outlines, never as SVG <text>.
+ *
+ * sharp draws SVG text through the host's fontconfig. Vercel's Lambda image ships
+ * with no fonts, so every glyph came out as a tofu box (□) on the first deployed
+ * card -- while rendering perfectly on a dev machine, which is what made it slip
+ * through. Converting text to <path> with opentype.js removes the host from the
+ * equation entirely: identical output everywhere, and exact glyph metrics for
+ * fitting.
+ *
+ * These files must stay in templates/fonts/ so next.config.ts's `./templates/**`
+ * tracing pulls them into the serverless bundle. Liberation Sans is SIL OFL 1.1
+ * (see LICENSE.txt beside them) and matches the font the template was rendered with.
  */
-export const FONT_STACK = "Liberation Sans, DejaVu Sans, sans-serif";
+export const FONT_REGULAR_FILE = "LiberationSans-Regular.ttf";
+export const FONT_BOLD_FILE = "LiberationSans-Bold.ttf";
+
+/** Weights at or above this use the bold file; Liberation Sans has no semibold. */
+export const BOLD_THRESHOLD = 600;
 
 /** 4:5 portrait -- Instagram's optimal feed post size. */
 export const CARD_WIDTH = 1080;
