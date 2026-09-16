@@ -5,6 +5,8 @@ import {
   validateEmail,
   validatePhone,
   NAME_MAX_LENGTH,
+  PHONE_INPUT_PATTERN,
+  PHONE_MAX_LENGTH,
 } from "@/lib/ambassador/validation";
 
 /**
@@ -140,5 +142,48 @@ describe("phone validation", () => {
     ["blank", "   "],
   ])("rejects %s", (_label, phone) => {
     expect(validatePhone(phone).ok).toBe(false);
+  });
+});
+
+/**
+ * The browser gate and the server validator must agree.
+ *
+ * `pattern` fails closed with a generic native message and no explanation, so if it is
+ * stricter than the server the student is blocked from submitting something that was
+ * actually fine, with no way to tell why. That failure is invisible in review, so it is
+ * asserted here against every format the validator handles.
+ */
+describe("phone field browser gate", () => {
+  // HTML pattern is implicitly anchored; anchor it explicitly to test the same thing.
+  const browserGate = new RegExp(`^(?:${PHONE_INPUT_PATTERN})$`);
+
+  const ACCEPTED = [
+    "03001234567",
+    "0300 1234567",
+    "0300-1234567",
+    "+923001234567",
+    "+92 300 1234567",
+    "923001234567",
+    "00923001234567",
+    "3001234567",
+  ];
+
+  it.each(ACCEPTED)("never blocks %j, which the server accepts", (phone) => {
+    expect(validatePhone(phone).ok, "server should accept this").toBe(true);
+    expect(browserGate.test(phone), "but the browser pattern blocked it").toBe(true);
+  });
+
+  it.each([
+    ["a landline", "0421234567"],
+    ["too short", "0300123"],
+    ["too long", "030012345678"],
+    ["letters", "0300abcdefg"],
+  ])("also catches %s before submit", (_label, phone) => {
+    expect(browserGate.test(phone)).toBe(false);
+  });
+
+  it("allows enough room for the longest accepted format", () => {
+    const longest = "+92 300 1234567";
+    expect(longest.length).toBeLessThanOrEqual(PHONE_MAX_LENGTH);
   });
 });

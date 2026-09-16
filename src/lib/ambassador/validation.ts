@@ -64,6 +64,22 @@ export function validateEmail(raw: string): ValidationResult {
  * Landlines are rejected on purpose: this is for contacting ambassadors about a
  * cleanup drive, where a mobile is the point.
  */
+/**
+ * Browser-side gate for the phone field, deliberately mirroring validatePhone below.
+ *
+ * `type="tel"` validates nothing -- it only picks the on-screen keyboard -- so without
+ * this a student could type anything and only discover it was wrong after submitting.
+ * The HTML `pattern` attribute is implicitly anchored, so no ^ or $ here.
+ *
+ * The two MUST agree, or the browser silently blocks input the server would have
+ * accepted, with a generic native message and no way for the student to tell why.
+ * `tests/ambassador-validation.test.ts` asserts that agreement across every format.
+ */
+export const PHONE_INPUT_PATTERN = "(?:\\+?92|0092|0)?[\\s.-]?3\\d{2}[\\s.-]?\\d{7}";
+
+/** Long enough for "+92 300 1234567" and any separator style around it. */
+export const PHONE_MAX_LENGTH = 20;
+
 export function validatePhone(raw: string): ValidationResult {
   // Everything a human might use as a separator.
   const digits = raw.replace(/[\s()\-.]/g, "");

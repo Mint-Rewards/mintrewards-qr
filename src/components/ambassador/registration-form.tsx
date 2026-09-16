@@ -19,6 +19,8 @@ import { batchYearOptions } from "@/lib/ambassador/config";
 import {
   EMAIL_MAX_LENGTH,
   NAME_MAX_LENGTH,
+  PHONE_INPUT_PATTERN,
+  PHONE_MAX_LENGTH,
   UNIVERSITY_MAX_LENGTH,
 } from "@/lib/ambassador/validation";
 import { UNIVERSITY_OTHER, type University } from "@/lib/types";
@@ -137,8 +139,14 @@ export function AmbassadorRegistrationForm({
               required
               autoComplete="tel"
               inputMode="tel"
+              maxLength={PHONE_MAX_LENGTH}
+              pattern={PHONE_INPUT_PATTERN}
+              title="Enter a Pakistani mobile number, like 0300 1234567"
               placeholder="0300 1234567"
             />
+            <p className="text-muted-foreground text-xs">
+              Pakistani mobile, e.g. 0300 1234567 or +92 300 1234567.
+            </p>
           </div>
 
           <div className="space-y-2">
