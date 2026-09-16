@@ -43,23 +43,29 @@ async function resolveUniversity(
   admin: SupabaseClient,
   universityId: string,
   other: string | undefined,
-): Promise<{ name: string; id: string | null } | { error: string }> {
+): Promise<
+  { name: string; badgeLabel: string; id: string | null } | { error: string }
+> {
   if (universityId === UNIVERSITY_OTHER) {
     const validated = validateUniversityName(other ?? "");
     if (!validated.ok) return { error: validated.error };
-    return { name: validated.value, id: null };
+    // No row to carry a short name, so the badge shows what they typed.
+    return { name: validated.value, badgeLabel: validated.value, id: null };
   }
 
   const { data } = await admin
     .from("universities")
-    .select("id, name, is_active")
+    .select("id, name, short_name, is_active")
     .eq("id", universityId)
     .maybeSingle();
 
   if (!data || !data.is_active) {
     return { error: "Please choose your university from the list." };
   }
-  return { name: data.name, id: data.id };
+
+  // The record keeps the full legal name; only the badge uses the short one, since a
+  // full name like BUITEMS' truncates mid-word on a single centred line.
+  return { name: data.name, badgeLabel: data.short_name || data.name, id: data.id };
 }
 
 /**
@@ -139,7 +145,12 @@ export async function submitAmbassadorRegistration(
 
   let cardUrl: string;
   try {
-    const jpg = await generateAmbassadorCardJpg({ fullName: full_name, university, batchYear: batch_year });
+    const jpg = await generateAmbassadorCardJpg({
+      fullName: full_name,
+      // Badge label, not the stored name: the row keeps the full legal name.
+      university: resolved.badgeLabel,
+      batchYear: batch_year,
+    });
     const filePath = ambassadorCardStoragePath(ambassador.id);
 
     const { error: uploadError } = await admin.storage

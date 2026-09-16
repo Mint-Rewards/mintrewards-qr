@@ -66,6 +66,7 @@ psql "$DATABASE_URL" -f supabase/migrations/0004_ambassadors.sql     # Mint Amba
 psql "$DATABASE_URL" -f supabase/migrations/0005_ambassadors_rls.sql # Mint Ambassador RLS
 psql "$DATABASE_URL" -f supabase/migrations/0006_ambassador_views.sql # Mint Ambassador views
 psql "$DATABASE_URL" -f supabase/migrations/0007_universities.sql    # university list + seed
+psql "$DATABASE_URL" -f supabase/migrations/0008_university_short_names.sql # badge labels
 ```
 
 Supabase direct connections are IPv6-only; from an IPv4 network use the pooler host
@@ -245,8 +246,20 @@ are measured features of the shield itself:
 - the printed **title spanning `x=164..1283`, centred on `x=724`**, which establishes both
   the centre line and a text width already proven to fit inside the tapering shield
 
-Two lines are stamped, both **centred**: the name in capitals, and university and batch
-composed onto a single line (`University of Lahore  |  Batch 2027`).
+Three centred lines are stamped: the name in capitals, then university, then batch.
+
+**University and batch get a line each on purpose.** Composed onto one line, a long
+campus name consumed the whole width and truncated the batch away entirely — losing the
+shorter, more useful value to the longer one.
+
+**Long campus names use an acronym.** `universities.short_name` holds a badge label where
+the full legal name will not fit: BUITEMS rather than "Balochistan University of
+Information Technology, Engineering and Management Sciences (BUITEMS)", which shrank to
+the floor and still truncated mid-word. Students say BUITEMS anyway. It is set on 35 of
+the 73 seeded rows and left null wherever the real name already fits, which caps the
+longest badge label at 32 characters. **This affects the badge only** —
+`mint_ambassadors.university` still stores the full name, so the roster, CSV exports and
+per-campus analytics are unchanged.
 
 To swap in different artwork, drop it at `templates/Badge template.pdf` and run:
 

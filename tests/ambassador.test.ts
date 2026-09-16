@@ -97,7 +97,8 @@ describe("ambassador card generation", () => {
    */
   it.each([
     ["name", ROWS.name],
-    ["university and batch", ROWS.detail],
+    ["university", ROWS.university],
+    ["batch", ROWS.batch],
   ])("stamps the %s into its slice of the detail band", async (_label, row) => {
     const template = await fs.readFile(
       path.join(process.cwd(), "templates", AMBASSADOR_CARD_TEMPLATE_FILE),
@@ -219,10 +220,15 @@ const SAFE = { left: 164, right: 1283 };
 
 const ROWS = {
   // The detail band runs y=728..1008; each line owns a slice of it. Nothing may be
-  // drawn outside its own slice, which is what keeps the two lines from colliding or
+  // drawn outside its own slice, which is what keeps the lines from colliding or
   // drifting onto the artwork above and below.
-  name: { top: 728, bottom: 880 },
-  detail: { top: 880, bottom: 1008 },
+  //
+  // University and batch are separate lines on purpose: composed onto one, a long
+  // campus name consumed the whole width and truncated the batch away entirely,
+  // losing the shorter and more useful value to the longer one.
+  name: { top: 728, bottom: 870 },
+  university: { top: 870, bottom: 930 },
+  batch: { top: 930, bottom: 1008 },
 };
 
 /**

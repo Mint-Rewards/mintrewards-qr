@@ -82,15 +82,26 @@ export const NAME_BOX: TextBox = {
   uppercase: true, align: "center",
 };
 
-/** University and batch, composed onto one line by card.ts. */
-export const DETAIL_BOX: TextBox = {
-  x: CENTRE_X, y: 928, width: 1060,
-  fontSize: 42, fontWeight: 400, color: BADGE_INK,
+/**
+ * University and batch get a line each, rather than sharing one.
+ *
+ * Composed onto a single line, a long university consumed the whole width and the
+ * batch was truncated away entirely -- losing the shorter, more useful value to the
+ * longer one. "Balochistan University of Information Technology, Engineering and
+ * Management Sciences (BUITEMS)" is a real entry in the seeded list, not a contrived
+ * case. Separate lines mean the batch can never be the casualty.
+ */
+export const UNIVERSITY_BOX: TextBox = {
+  x: CENTRE_X, y: 905, width: 1060,
+  fontSize: 38, fontWeight: 400, color: BADGE_INK,
   align: "center",
 };
 
-/** Separator between university and batch on the detail line. */
-export const DETAIL_SEPARATOR = "  |  ";
+export const BATCH_BOX: TextBox = {
+  x: CENTRE_X, y: 968, width: 1060,
+  fontSize: 38, fontWeight: 400, color: BADGE_INK,
+  align: "center",
+};
 
 /**
  * Below this the text is too small to read on a phone, so an absurdly long value is

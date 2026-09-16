@@ -10,8 +10,8 @@ import {
   BOLD_THRESHOLD,
   CARD_WIDTH,
   CARD_HEIGHT,
-  DETAIL_BOX,
-  DETAIL_SEPARATOR,
+  BATCH_BOX,
+  UNIVERSITY_BOX,
   FONT_BOLD_FILE,
   FONT_REGULAR_FILE,
   MIN_FONT_SIZE,
@@ -49,17 +49,15 @@ export async function generateAmbassadorCardJpg(
     );
   }
 
-  // The badge carries university and batch on a single line, not as separate fields.
-  const detail = `${input.university}${DETAIL_SEPARATOR}Batch ${input.batchYear}`;
-
-  const [name, details] = await Promise.all([
+  const [name, university, batch] = await Promise.all([
     renderLine(NAME_BOX, input.fullName),
-    renderLine(DETAIL_BOX, detail),
+    renderLine(UNIVERSITY_BOX, input.university),
+    renderLine(BATCH_BOX, `Batch ${input.batchYear}`),
   ]);
 
   const overlay =
     `<svg width="${CARD_WIDTH}" height="${CARD_HEIGHT}" xmlns="http://www.w3.org/2000/svg">` +
-    name + details +
+    name + university + batch +
     `</svg>`;
 
   return sharp(background)
