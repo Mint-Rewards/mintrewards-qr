@@ -32,12 +32,29 @@ describe("ambassador batch classification", () => {
     expect(classifyBatch(ALUMNUS_CUTOFF_YEAR + 5)).toBe("student");
   });
 
-  it("offers batch years centred on the current year, newest first", () => {
+  it("offers six years either side of the current year, newest first", () => {
     const options = batchYearOptions(new Date("2026-09-14"));
-    expect(options[0]).toBe(2027);
-    expect(options).toContain(2026);
-    expect(options).toContain(2011);
+
+    expect(options[0]).toBe(2032);
+    expect(options.at(-1)).toBe(2020);
+    expect(options).toHaveLength(13);
     expect(options).toEqual([...options].sort((a, b) => b - a));
+  });
+
+  it("stays inside the six-year window", () => {
+    const options = batchYearOptions(new Date("2026-09-14"));
+
+    // A first-year on a six-year programme reaches the far end; nothing beyond it is
+    // a real batch, and a longer list is harder to scroll on a phone.
+    expect(options).not.toContain(2033);
+    expect(options).not.toContain(2019);
+  });
+
+  it("classifies both ends of the offered range", () => {
+    const options = batchYearOptions(new Date("2026-09-14"));
+
+    expect(classifyBatch(options[0])).toBe("student");
+    expect(classifyBatch(options.at(-1)!)).toBe("alumnus");
   });
 });
 

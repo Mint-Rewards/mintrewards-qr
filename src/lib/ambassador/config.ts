@@ -21,10 +21,23 @@ export const AMBASSADOR_STATUS_LABELS: Record<AmbassadorStatus, string> = {
   alumnus: "Alumnus Ambassador",
 };
 
+/**
+ * How far the batch dropdown reaches either side of the current year.
+ *
+ * Six forward covers anyone currently enrolled, including a first-year on a five- or
+ * six-year programme such as MBBS. Six back covers the alumni the programme actually
+ * wants to reach; older graduates are not the audience, and a longer list is harder to
+ * scroll on the phone where this form is filled.
+ */
+export const BATCH_YEARS_AHEAD = 6;
+export const BATCH_YEARS_BACK = 6;
+
 /** Batch year options for the registration form, newest first. */
 export function batchYearOptions(now: Date = new Date()): number[] {
   const currentYear = now.getFullYear();
   const years: number[] = [];
-  for (let y = currentYear + 1; y >= currentYear - 15; y--) years.push(y);
+  for (let y = currentYear + BATCH_YEARS_AHEAD; y >= currentYear - BATCH_YEARS_BACK; y--) {
+    years.push(y);
+  }
   return years;
 }
