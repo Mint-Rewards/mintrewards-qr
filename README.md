@@ -246,20 +246,24 @@ are measured features of the shield itself:
 - the printed **title spanning `x=164..1283`, centred on `x=724`**, which establishes both
   the centre line and a text width already proven to fit inside the tapering shield
 
-Three centred lines are stamped: the name in capitals, then university, then batch.
+Two centred lines are stamped: the name in capitals, then `University  |  Batch 2026`.
 
-**University and batch get a line each on purpose.** Composed onto one line, a long
-campus name consumed the whole width and truncated the batch away entirely — losing the
-shorter, more useful value to the longer one.
+**Long campus names use an acronym**, which is what makes one line viable.
 
 **Long campus names use an acronym.** `universities.short_name` holds a badge label where
 the full legal name will not fit: BUITEMS rather than "Balochistan University of
 Information Technology, Engineering and Management Sciences (BUITEMS)", which shrank to
 the floor and still truncated mid-word. Students say BUITEMS anyway. It is set on 35 of
 the 73 seeded rows and left null wherever the real name already fits, which caps the
-longest badge label at 32 characters. **This affects the badge only** —
-`mint_ambassadors.university` still stores the full name, so the roster, CSV exports and
-per-campus analytics are unchanged.
+longest badge label at 32 characters — so `BUITEMS  |  Batch 2026` fits with room to
+spare. **This affects the badge only** — `mint_ambassadors.university` still stores the
+full name, so the roster, CSV exports and per-campus analytics are unchanged.
+
+**The batch is protected during fitting.** A free-text "Other" campus has no acronym to
+fall back on, and plain truncation eats the *end* of a line — which here is the batch,
+the shorter and more useful half. `truncatePreservingSuffix` shortens only the text
+before the separator, so the batch survives however long the campus name is. It takes an
+injected measure function, so that rule is unit-tested without loading a font.
 
 To swap in different artwork, drop it at `templates/Badge template.pdf` and run:
 

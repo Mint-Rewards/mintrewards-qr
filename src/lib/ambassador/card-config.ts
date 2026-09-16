@@ -83,25 +83,25 @@ export const NAME_BOX: TextBox = {
 };
 
 /**
- * University and batch get a line each, rather than sharing one.
+ * University and batch share one line, as the design intends.
  *
- * Composed onto a single line, a long university consumed the whole width and the
- * batch was truncated away entirely -- losing the shorter, more useful value to the
- * longer one. "Balochistan University of Information Technology, Engineering and
- * Management Sciences (BUITEMS)" is a real entry in the seeded list, not a contrived
- * case. Separate lines mean the batch can never be the casualty.
+ * This only works because long campuses carry an acronym (universities.short_name):
+ * the longest label reaching the badge is 32 characters, so "BUITEMS  |  Batch 2026"
+ * fits with room to spare. Against full legal names it did not -- the batch was
+ * truncated away entirely, losing the shorter and more useful value to the longer one.
+ *
+ * A free-text "Other" campus has no acronym to fall back on, so the batch is protected
+ * during fitting rather than trusted to fit: see `protectedSuffix` in card.ts, which
+ * truncates the university and never the batch.
  */
-export const UNIVERSITY_BOX: TextBox = {
-  x: CENTRE_X, y: 905, width: 1060,
-  fontSize: 38, fontWeight: 400, color: BADGE_INK,
+export const DETAIL_BOX: TextBox = {
+  x: CENTRE_X, y: 928, width: 1060,
+  fontSize: 42, fontWeight: 400, color: BADGE_INK,
   align: "center",
 };
 
-export const BATCH_BOX: TextBox = {
-  x: CENTRE_X, y: 968, width: 1060,
-  fontSize: 38, fontWeight: 400, color: BADGE_INK,
-  align: "center",
-};
+/** Separator between university and batch on the detail line. */
+export const DETAIL_SEPARATOR = "  |  ";
 
 /**
  * Below this the text is too small to read on a phone, so an absurdly long value is

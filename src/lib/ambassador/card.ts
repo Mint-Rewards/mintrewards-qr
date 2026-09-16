@@ -10,8 +10,8 @@ import {
   BOLD_THRESHOLD,
   CARD_WIDTH,
   CARD_HEIGHT,
-  BATCH_BOX,
-  UNIVERSITY_BOX,
+  DETAIL_BOX,
+  DETAIL_SEPARATOR,
   FONT_BOLD_FILE,
   FONT_REGULAR_FILE,
   MIN_FONT_SIZE,
@@ -49,15 +49,18 @@ export async function generateAmbassadorCardJpg(
     );
   }
 
-  const [name, university, batch] = await Promise.all([
+  // University and batch share a line. The batch half is marked protected so that an
+  // over-long campus is what gets shortened, never the batch.
+  const batchLabel = `${DETAIL_SEPARATOR}Batch ${input.batchYear}`;
+
+  const [name, detail] = await Promise.all([
     renderLine(NAME_BOX, input.fullName),
-    renderLine(UNIVERSITY_BOX, input.university),
-    renderLine(BATCH_BOX, `Batch ${input.batchYear}`),
+    renderLine(DETAIL_BOX, `${input.university}${batchLabel}`, batchLabel),
   ]);
 
   const overlay =
     `<svg width="${CARD_WIDTH}" height="${CARD_HEIGHT}" xmlns="http://www.w3.org/2000/svg">` +
-    name + university + batch +
+    name + detail +
     `</svg>`;
 
   return sharp(background)
@@ -113,7 +116,11 @@ function loadFont(fileName: string): Promise<Font> {
   return loading;
 }
 
-async function renderLine(box: TextBox, rawValue: string): Promise<string> {
+async function renderLine(
+  box: TextBox,
+  rawValue: string,
+  protectedSuffix?: string,
+): Promise<string> {
   const trimmed = rawValue.trim();
   if (!trimmed) return "";
 
@@ -124,7 +131,7 @@ async function renderLine(box: TextBox, rawValue: string): Promise<string> {
   const font = await loadFont(
     box.fontWeight >= BOLD_THRESHOLD ? FONT_BOLD_FILE : FONT_REGULAR_FILE,
   );
-  const fitted = fitToBox(font, value, box);
+  const fitted = fitToBox(font, value, box, protectedSuffix);
 
   // For a centred line, box.x is the shield's centre rather than the run's left edge,
   // so the pen has to start half the rendered width to its left. Measured after
@@ -155,6 +162,7 @@ function fitToBox(
   font: Font,
   value: string,
   box: TextBox,
+  protectedSuffix?: string,
 ): { value: string; fontSize: number } {
   if (font.getAdvanceWidth(value, box.fontSize) <= box.width) {
     return { value, fontSize: box.fontSize };
@@ -169,15 +177,38 @@ function fitToBox(
     return { value, fontSize };
   }
 
-  // Only reachable at the MIN_FONT_SIZE floor: drop characters until the ellipsis fits.
-  let truncated = value;
-  while (
-    truncated.length > 1 &&
-    font.getAdvanceWidth(`${truncated}…`, fontSize) > box.width
-  ) {
-    truncated = truncated.slice(0, -1);
+  // Only reachable at the MIN_FONT_SIZE floor.
+  const measure = (text: string) => font.getAdvanceWidth(text, fontSize);
+  return {
+    value: truncatePreservingSuffix(value, protectedSuffix ?? "", measure, box.width),
+    fontSize,
+  };
+}
+
+/**
+ * Shortens `value` to fit, keeping `suffix` intact.
+ *
+ * Plain truncation eats the END of the string, which on the badge's shared line is the
+ * batch -- the shorter and more useful half. Only the text before the suffix is
+ * shortened, so "Batch 2026" survives however long the campus name is.
+ *
+ * `measure` is injected so this is testable without loading a font.
+ */
+export function truncatePreservingSuffix(
+  value: string,
+  suffix: string,
+  measure: (text: string) => number,
+  maxWidth: number,
+): string {
+  if (measure(value) <= maxWidth) return value;
+
+  let head = suffix ? value.slice(0, value.length - suffix.length) : value;
+
+  while (head.length > 1 && measure(`${head}…${suffix}`) > maxWidth) {
+    head = head.slice(0, -1);
   }
-  return { value: `${truncated}…`, fontSize };
+
+  return `${head}…${suffix}`;
 }
 
 /** Storage object path for a generated ambassador card. */

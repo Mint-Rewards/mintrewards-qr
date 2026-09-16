@@ -7,7 +7,10 @@ import {
   classifyBatch,
   batchYearOptions,
 } from "@/lib/ambassador/config";
-import { generateAmbassadorCardJpg } from "@/lib/ambassador/card";
+import {
+  generateAmbassadorCardJpg,
+  truncatePreservingSuffix,
+} from "@/lib/ambassador/card";
 import {
   AMBASSADOR_CARD_TEMPLATE_FILE,
   CARD_WIDTH,
@@ -97,8 +100,7 @@ describe("ambassador card generation", () => {
    */
   it.each([
     ["name", ROWS.name],
-    ["university", ROWS.university],
-    ["batch", ROWS.batch],
+    ["university and batch", ROWS.detail],
   ])("stamps the %s into its slice of the detail band", async (_label, row) => {
     const template = await fs.readFile(
       path.join(process.cwd(), "templates", AMBASSADOR_CARD_TEMPLATE_FILE),
@@ -167,6 +169,44 @@ describe("ambassador card generation", () => {
   });
 });
 
+/**
+ * The badge puts university and batch on one line, so an over-long campus must eat
+ * into itself rather than into the batch. Plain truncation takes the END of a string,
+ * which here is exactly the value worth keeping.
+ *
+ * Measured with an injected width function -- one unit per character -- so the rule is
+ * tested without dragging a font in.
+ */
+describe("detail line truncation", () => {
+  const measure = (text: string) => text.length;
+  const BATCH = "  |  Batch 2026";
+
+  it("leaves a line that already fits completely alone", () => {
+    const line = `BUITEMS${BATCH}`;
+    expect(truncatePreservingSuffix(line, BATCH, measure, 100)).toBe(line);
+  });
+
+  it("keeps the batch when the university is far too long", () => {
+    const uni = "Balochistan University of Information Technology and Management Sciences";
+    const result = truncatePreservingSuffix(`${uni}${BATCH}`, BATCH, measure, 40);
+
+    expect(result.endsWith(BATCH)).toBe(true);
+    expect(result).toContain("…");
+    expect(measure(result)).toBeLessThanOrEqual(40);
+  });
+
+  it("keeps the batch even when the limit barely clears the batch itself", () => {
+    const result = truncatePreservingSuffix(`Some Very Long University${BATCH}`, BATCH, measure, BATCH.length + 3);
+    expect(result.endsWith(BATCH)).toBe(true);
+  });
+
+  it("falls back to plain truncation when nothing is protected", () => {
+    const result = truncatePreservingSuffix("A very long value indeed", "", measure, 10);
+    expect(result).toHaveLength(10);
+    expect(result.endsWith("…")).toBe(true);
+  });
+});
+
 describe("ambassador sharing", () => {
   it("falls back to a generic caption when the campaign has none", () => {
     const caption = ambassadorShareCaption(null, "Amina Khan");
@@ -220,15 +260,10 @@ const SAFE = { left: 164, right: 1283 };
 
 const ROWS = {
   // The detail band runs y=728..1008; each line owns a slice of it. Nothing may be
-  // drawn outside its own slice, which is what keeps the lines from colliding or
-  // drifting onto the artwork above and below.
-  //
-  // University and batch are separate lines on purpose: composed onto one, a long
-  // campus name consumed the whole width and truncated the batch away entirely,
-  // losing the shorter and more useful value to the longer one.
-  name: { top: 728, bottom: 870 },
-  university: { top: 870, bottom: 930 },
-  batch: { top: 930, bottom: 1008 },
+  // drawn outside its own slice, which keeps the two lines from colliding or drifting
+  // onto the artwork above and below.
+  name: { top: 728, bottom: 880 },
+  detail: { top: 880, bottom: 1008 },
 };
 
 /**
