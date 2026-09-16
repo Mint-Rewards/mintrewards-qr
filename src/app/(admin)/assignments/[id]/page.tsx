@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Pencil, Download } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { generateQrDataUrl } from "@/lib/qr";
+import { formatDateTime } from "@/lib/format";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { CopyButton } from "@/components/common/copy-button";
@@ -124,7 +125,7 @@ export default async function AssignmentDetailPage({
           {(standees ?? []).length > 0 && (
             <p className="text-muted-foreground text-xs">
               {standees!.length} version{standees!.length === 1 ? "" : "s"} generated ·
-              latest {new Date(standees![0].generated_at).toLocaleString()}
+              latest {formatDateTime(standees![0].generated_at)}
             </p>
           )}
         </CardContent>
@@ -158,7 +159,7 @@ export default async function AssignmentDetailPage({
                 {events.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="text-muted-foreground text-sm">
-                      {new Date(e.scanned_at).toLocaleString()}
+                      {formatDateTime(e.scanned_at)}
                     </TableCell>
                     <TableCell className="capitalize">{e.platform}</TableCell>
                     <TableCell className="text-muted-foreground">{e.device_type ?? "—"}</TableCell>

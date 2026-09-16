@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { formatDateTime } from "@/lib/format";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
@@ -101,7 +102,7 @@ export default async function ScansPage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>When</TableHead>
+                  <TableHead>When (PKT)</TableHead>
                   <TableHead>Team Member</TableHead>
                   <TableHead>Assignment</TableHead>
                   <TableHead>Platform</TableHead>
@@ -113,7 +114,7 @@ export default async function ScansPage({
                 {rows.map((e) => (
                   <TableRow key={e.id} className={e.is_bot ? "opacity-60" : undefined}>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {new Date(e.scanned_at).toLocaleString()}
+                      {formatDateTime(e.scanned_at)}
                     </TableCell>
                     <TableCell>
                       {e.team_members ? (

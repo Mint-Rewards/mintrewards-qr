@@ -14,6 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { AMBASSADOR_STATUS_LABELS } from "@/lib/ambassador/config";
+import { formatDateTime } from "@/lib/format";
 import type {
   AmbassadorCampaign, AmbassadorCampaignPerformance, MintAmbassador,
 } from "@/lib/types";
@@ -183,7 +184,7 @@ export default async function AmbassadorCampaignDetailPage({
                   <TableHead>University</TableHead>
                   <TableHead>Batch</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Registered</TableHead>
+                  <TableHead>Registered (PKT)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -209,7 +210,7 @@ export default async function AmbassadorCampaignDetailPage({
                       {AMBASSADOR_STATUS_LABELS[a.ambassador_status]}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {new Date(a.created_at).toLocaleString()}
+                      {formatDateTime(a.created_at)}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Download } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { formatDateTime } from "@/lib/format";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { EmptyState } from "@/components/common/empty-state";
@@ -156,7 +157,7 @@ export default async function TeamMemberPage({
                 {events.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="text-muted-foreground text-sm">
-                      {new Date(e.scanned_at).toLocaleString()}
+                      {formatDateTime(e.scanned_at)}
                     </TableCell>
                     <TableCell className="capitalize">{e.platform}</TableCell>
                     <TableCell className="text-muted-foreground">{e.device_type ?? "—"}</TableCell>
