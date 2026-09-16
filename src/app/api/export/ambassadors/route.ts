@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from("mint_ambassadors")
     .select(
-      `full_name, university, batch_year, ambassador_status, created_at,
+      `full_name, email, phone, university, batch_year, ambassador_status, created_at,
        ambassador_campaigns ( title, reference_code, event_name, city )`,
     )
     .order("created_at", { ascending: false })
@@ -37,6 +37,8 @@ export async function GET(request: Request) {
     const campaign = one(raw.ambassador_campaigns);
     return {
       full_name: raw.full_name,
+      email: raw.email ?? "",
+      phone: raw.phone ?? "",
       university: raw.university,
       batch_year: raw.batch_year,
       status: AMBASSADOR_STATUS_LABELS[raw.ambassador_status as "student" | "alumnus"],
@@ -50,6 +52,8 @@ export async function GET(request: Request) {
 
   const csv = toCsv(rows, [
     { key: "full_name", header: "Full Name" },
+    { key: "email", header: "Email" },
+    { key: "phone", header: "Phone" },
     { key: "university", header: "University" },
     { key: "batch_year", header: "Batch Year" },
     { key: "status", header: "Status" },

@@ -175,6 +175,9 @@ export interface MintAmbassador {
   id: string;
   campaign_id: string;
   full_name: string;
+  /** Null on the rows that predate contact collection. */
+  email: string | null;
+  phone: string | null;
   university: string;
   /** Null when the student chose "Other" and typed their campus in. */
   university_id: string | null;

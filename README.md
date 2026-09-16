@@ -67,6 +67,7 @@ psql "$DATABASE_URL" -f supabase/migrations/0005_ambassadors_rls.sql # Mint Amba
 psql "$DATABASE_URL" -f supabase/migrations/0006_ambassador_views.sql # Mint Ambassador views
 psql "$DATABASE_URL" -f supabase/migrations/0007_universities.sql    # university list + seed
 psql "$DATABASE_URL" -f supabase/migrations/0008_university_short_names.sql # badge labels
+psql "$DATABASE_URL" -f supabase/migrations/0009_ambassador_contact.sql  # email + phone
 ```
 
 Supabase direct connections are IPv6-only; from an IPv4 network use the pooler host
@@ -211,6 +212,17 @@ field. Free text made the programme's central question unanswerable — "LUMS", 
 "Lahore University of Management Sciences" are one campus and three rows — so listed
 picks also store a `university_id` foreign key, and only genuine long-tail entries are
 text. The list is seeded, not exhaustive; extend it in the `universities` table.
+
+**Email and mobile are collected and required.** They give the ambassador an identity
+the programme can actually reach — the drive happens in a physical place on a specific
+day — and they are what makes card recovery work across devices. Phone numbers are
+normalised to `+923XXXXXXXXX` and emails lower-cased at the boundary, so the same person
+always produces the same string; storing whatever was typed would make the value useless
+for identifying anyone. A unique index on `(campaign_id, email)` means re-registering
+with the same email returns the **original card** rather than creating a second row.
+
+Neither value is ever selected by the public card page, and neither appears on the badge
+image — they reach admins only, through the roster and the CSV export.
 
 **Names are validated** (`src/lib/ambassador/validation.ts`): letters, spaces, hyphens,
 apostrophes and full stops only, 2–60 characters, with cheap keyboard-mashing checks

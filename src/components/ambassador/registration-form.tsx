@@ -16,7 +16,11 @@ import {
   type AmbassadorRegistrationResult,
 } from "@/app/actions/ambassador-registration";
 import { batchYearOptions } from "@/lib/ambassador/config";
-import { NAME_MAX_LENGTH, UNIVERSITY_MAX_LENGTH } from "@/lib/ambassador/validation";
+import {
+  EMAIL_MAX_LENGTH,
+  NAME_MAX_LENGTH,
+  UNIVERSITY_MAX_LENGTH,
+} from "@/lib/ambassador/validation";
 import { UNIVERSITY_OTHER, type University } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -101,6 +105,40 @@ export function AmbassadorRegistrationForm({
             <p className="text-muted-foreground text-xs">
               As it should appear on your card — letters only.
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email">
+              Email <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              required
+              maxLength={EMAIL_MAX_LENGTH}
+              autoComplete="email"
+              inputMode="email"
+              placeholder="you@example.com"
+            />
+            <p className="text-muted-foreground text-xs">
+              Use the same email if you ever need your card again.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">
+              Mobile number <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="phone"
+              name="phone"
+              type="tel"
+              required
+              autoComplete="tel"
+              inputMode="tel"
+              placeholder="0300 1234567"
+            />
           </div>
 
           <div className="space-y-2">

@@ -179,6 +179,7 @@ export default async function AmbassadorCampaignDetailPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Contact</TableHead>
                   <TableHead>University</TableHead>
                   <TableHead>Batch</TableHead>
                   <TableHead>Status</TableHead>
@@ -189,6 +190,19 @@ export default async function AmbassadorCampaignDetailPage({
                 {ambassadors.map((a) => (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.full_name}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {a.email ? (
+                        <a href={`mailto:${a.email}`} className="hover:text-foreground block hover:underline">
+                          {a.email}
+                        </a>
+                      ) : null}
+                      {a.phone ? (
+                        <a href={`tel:${a.phone}`} className="hover:text-foreground block hover:underline">
+                          {a.phone}
+                        </a>
+                      ) : null}
+                      {!a.email && !a.phone && "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{a.university}</TableCell>
                     <TableCell className="text-muted-foreground">{a.batch_year}</TableCell>
                     <TableCell className="text-muted-foreground">

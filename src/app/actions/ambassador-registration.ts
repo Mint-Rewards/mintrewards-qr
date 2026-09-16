@@ -5,8 +5,13 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { UNIVERSITY_OTHER } from "@/lib/types";
-import { validateFullName, validateUniversityName } from "@/lib/ambassador/validation";
-import { isValidTrackingCodeShape } from "@/lib/tracking-code";
+import {
+  validateEmail,
+  validateFullName,
+  validatePhone,
+  validateUniversityName,
+} from "@/lib/ambassador/validation";
+import { isValidTrackingCodeShape, UNIQUE_VIOLATION } from "@/lib/tracking-code";
 import { extractClientIp } from "@/lib/user-agent";
 import { classifyBatch, type AmbassadorStatus } from "@/lib/ambassador/config";
 import { generateAmbassadorCardJpg, ambassadorCardStoragePath } from "@/lib/ambassador/card";
@@ -27,6 +32,8 @@ export interface AmbassadorRegistrationResult {
 
 const schema = z.object({
   full_name: z.string(),
+  email: z.string(),
+  phone: z.string(),
   university_id: z.string(),
   university_other: z.string().optional(),
   batch_year: z.coerce.number().int().min(2000).max(2100),
@@ -68,6 +75,52 @@ async function resolveUniversity(
   return { name: data.name, badgeLabel: data.short_name || data.name, id: data.id };
 }
 
+interface ExistingRegistration {
+  id: string;
+  full_name: string;
+  ambassador_status: AmbassadorStatus;
+  card_file_path: string | null;
+}
+
+async function findExistingRegistration(
+  admin: SupabaseClient,
+  campaignId: string,
+  email: string,
+): Promise<ExistingRegistration | null> {
+  const { data } = await admin
+    .from("mint_ambassadors")
+    .select("id, full_name, ambassador_status, card_file_path")
+    .eq("campaign_id", campaignId)
+    .eq("email", email)
+    .maybeSingle();
+
+  // A row whose card never generated is treated as absent, so the student gets a
+  // working card on this attempt rather than a link to a missing image.
+  return data?.card_file_path ? (data as ExistingRegistration) : null;
+}
+
+/** The same success payload a fresh registration returns, for an existing row. */
+function successFor(
+  existing: ExistingRegistration,
+  shareCaption: string | null,
+  admin: SupabaseClient,
+): AmbassadorRegistrationResult {
+  const { data: pub } = admin.storage
+    .from(env.AMBASSADOR_CARDS_BUCKET)
+    .getPublicUrl(existing.card_file_path!);
+
+  return {
+    success: {
+      ambassadorId: existing.id,
+      fullName: existing.full_name,
+      status: existing.ambassador_status,
+      cardUrl: pub.publicUrl,
+      cardPageUrl: `${qrBaseUrl()}/a/card/${existing.id}`,
+      shareCaption: ambassadorShareCaption(shareCaption, existing.full_name),
+    },
+  };
+}
+
 /**
  * Public registration submission. No authentication -- runs from the /a/[code] form.
  *
@@ -87,6 +140,8 @@ export async function submitAmbassadorRegistration(
 
   const parsed = schema.safeParse({
     full_name: formData.get("full_name"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
     university_id: formData.get("university_id"),
     university_other: formData.get("university_other") ?? undefined,
     batch_year: formData.get("batch_year"),
@@ -97,6 +152,12 @@ export async function submitAmbassadorRegistration(
 
   const name = validateFullName(parsed.data.full_name);
   if (!name.ok) return { error: name.error };
+
+  const email = validateEmail(parsed.data.email);
+  if (!email.ok) return { error: email.error };
+
+  const phone = validatePhone(parsed.data.phone);
+  if (!phone.ok) return { error: phone.error };
 
   const admin = createAdminClient();
 
@@ -124,11 +185,27 @@ export async function submitAmbassadorRegistration(
 
   const requestHeaders = await headers();
 
+  /**
+   * Someone re-registering with the same email gets their ORIGINAL card back rather
+   * than a second row.
+   *
+   * This is the common case, not an abuse case: the device-level memory only works on
+   * the phone they signed up on, so anyone returning from a laptop, a different
+   * browser, or after clearing data lands on a blank form again. Treating the email as
+   * their identity turns that into recovery instead of a duplicate.
+   */
+  const existing = await findExistingRegistration(admin, campaign.id, email.value);
+  if (existing) {
+    return successFor(existing, campaign.share_caption, admin);
+  }
+
   const { data: ambassador, error: insertError } = await admin
     .from("mint_ambassadors")
     .insert({
       campaign_id: campaign.id,
       full_name,
+      email: email.value,
+      phone: phone.value,
       university,
       university_id: resolved.id,
       batch_year,
@@ -140,6 +217,12 @@ export async function submitAmbassadorRegistration(
     .single();
 
   if (insertError || !ambassador) {
+    // A unique-violation here means two submissions raced each other past the check
+    // above. The loser should still get the card, not an error.
+    if (insertError?.code === UNIQUE_VIOLATION) {
+      const raced = await findExistingRegistration(admin, campaign.id, email.value);
+      if (raced) return successFor(raced, campaign.share_caption, admin);
+    }
     return { error: "Could not save your registration. Please try again." };
   }
 

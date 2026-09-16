@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   validateFullName,
   validateUniversityName,
+  validateEmail,
+  validatePhone,
   NAME_MAX_LENGTH,
 } from "@/lib/ambassador/validation";
 
@@ -84,5 +86,59 @@ describe("university name validation", () => {
     ["keyboard mashing", "asdfasdf"],
   ])("rejects %s", (_label, name) => {
     expect(validateUniversityName(name).ok).toBe(false);
+  });
+});
+
+describe("email validation", () => {
+  it.each([
+    "ayesha.khan@gmail.com",
+    "a.b+tag@sub.domain.co.uk",
+    "student_2027@lums.edu.pk",
+    "MUBASHIR@EXAMPLE.COM",
+  ])("accepts %j", (email) => {
+    expect(validateEmail(email).ok, `rejected: ${email}`).toBe(true);
+  });
+
+  it("lower-cases so one person cannot register twice by changing case", () => {
+    expect(validateEmail("  Ayesha.Khan@Gmail.COM  ")).toEqual({
+      ok: true,
+      value: "ayesha.khan@gmail.com",
+    });
+  });
+
+  it.each([
+    ["no @", "ayeshagmail.com"],
+    ["no domain dot", "ayesha@gmail"],
+    ["a space", "ayesha khan@gmail.com"],
+    ["blank", "   "],
+  ])("rejects %s", (_label, email) => {
+    expect(validateEmail(email).ok).toBe(false);
+  });
+});
+
+describe("phone validation", () => {
+  it.each([
+    ["local", "03001234567"],
+    ["local spaced", "0300 1234567"],
+    ["local dashed", "0300-1234567"],
+    ["international", "+923001234567"],
+    ["international spaced", "+92 300 1234567"],
+    ["no plus", "923001234567"],
+    ["double-zero prefix", "00923001234567"],
+    ["bare national", "3001234567"],
+  ])("normalises a %s number to one canonical form", (_label, phone) => {
+    // The same person writes their number a dozen ways; all must land on one value,
+    // or the number cannot identify them later.
+    expect(validatePhone(phone)).toEqual({ ok: true, value: "+923001234567" });
+  });
+
+  it.each([
+    ["a landline", "0421234567"],
+    ["too short", "0300123"],
+    ["too long", "030012345678"],
+    ["letters", "0300abcdefg"],
+    ["blank", "   "],
+  ])("rejects %s", (_label, phone) => {
+    expect(validatePhone(phone).ok).toBe(false);
   });
 });

@@ -25,7 +25,70 @@ const NAME_ALLOWED = /^[A-Za-z][A-Za-z\s'.-]*$/;
 /** University names additionally carry commas, ampersands and parentheses. */
 const UNIVERSITY_ALLOWED = /^[A-Za-z][A-Za-z0-9\s'.,&()-]*$/;
 
+export const EMAIL_MAX_LENGTH = 120;
+
 export type ValidationResult = { ok: true; value: string } | { ok: false; error: string };
+
+/**
+ * Deliberately loose. Email syntax is famously permissive, and the only authority on
+ * whether an address exists is sending to it -- so this rejects the shapes that are
+ * unambiguously wrong (no @, no dot in the domain, whitespace) and lets everything
+ * else through rather than turning away a student with an unusual but valid address.
+ *
+ * Stored lower-cased so the same person cannot register twice with different casing.
+ */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+
+export function validateEmail(raw: string): ValidationResult {
+  const value = raw.trim().toLowerCase();
+
+  if (!value) return { ok: false, error: "Please enter your email address." };
+  if (value.length > EMAIL_MAX_LENGTH) {
+    return { ok: false, error: `Email must be ${EMAIL_MAX_LENGTH} characters or fewer.` };
+  }
+  if (!EMAIL_SHAPE.test(value)) {
+    return { ok: false, error: "That doesn't look like a valid email address." };
+  }
+
+  return { ok: true, value };
+}
+
+/**
+ * Pakistani mobile numbers, normalised to +923XXXXXXXXX.
+ *
+ * Students write the same number a dozen ways -- 0300 1234567, 0300-1234567,
+ * +92 300 1234567, 92-300-1234567 -- and all of them are the same person. Storing one
+ * canonical form is what lets the number identify someone later; storing whatever they
+ * typed would make that impossible.
+ *
+ * Landlines are rejected on purpose: this is for contacting ambassadors about a
+ * cleanup drive, where a mobile is the point.
+ */
+export function validatePhone(raw: string): ValidationResult {
+  // Everything a human might use as a separator.
+  const digits = raw.replace(/[\s()\-.]/g, "");
+
+  if (!digits) return { ok: false, error: "Please enter your mobile number." };
+  if (/[^\d+]/.test(digits)) {
+    return { ok: false, error: "Mobile number can only contain digits." };
+  }
+
+  let national: string | null = null;
+  if (/^0(3\d{9})$/.test(digits)) national = digits.slice(1);
+  else if (/^\+92(3\d{9})$/.test(digits)) national = digits.slice(3);
+  else if (/^92(3\d{9})$/.test(digits)) national = digits.slice(2);
+  else if (/^0092(3\d{9})$/.test(digits)) national = digits.slice(4);
+  else if (/^(3\d{9})$/.test(digits)) national = digits;
+
+  if (!national) {
+    return {
+      ok: false,
+      error: "Enter a Pakistani mobile number, like 0300 1234567.",
+    };
+  }
+
+  return { ok: true, value: `+92${national}` };
+}
 
 /**
  * Collapses runs of whitespace so "Ayesha    Khan" and "Ayesha Khan" are the same
