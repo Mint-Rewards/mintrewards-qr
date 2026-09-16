@@ -218,11 +218,13 @@ export function AmbassadorCardSuccess({
         <CopyButton value={cardPageUrl} label="Copy card link" />
       </div>
 
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        {canShareFile
-          ? "Share card opens your share sheet with the card attached — pick LinkedIn, Instagram or WhatsApp. If LinkedIn isn't in the first row, tap More to find it. Your caption is copied automatically: long-press and paste it into the post."
-          : "Neither network lets us pre-fill a post, so we copy your caption to the clipboard and download the card — paste the caption and attach the image."}
-      </p>
+      {canShareFile && (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Share card opens your share sheet with the card attached — pick LinkedIn,
+          Instagram or WhatsApp. If LinkedIn isn&apos;t in the first row, tap More to find
+          it. Your caption is copied automatically: long-press and paste it into the post.
+        </p>
+      )}
     </div>
   );
 }
