@@ -86,35 +86,56 @@ describe("ambassador card generation", () => {
     );
   });
 
+  /**
+   * Each line is measured against the BLANK template, not against another render.
+   *
+   * Diffing two renders only reveals the glyphs that changed: swapping the batch year
+   * alters a few characters at the right-hand end of the shared detail line, so the
+   * diff is a fragment sitting well off-centre and says nothing about where the line
+   * itself sits. Differencing against the untouched artwork yields exactly the stamped
+   * pixels, which can then be split by row.
+   */
   it.each([
-    ["name", { fullName: "Zainab Fatima Sheikh" }, ROWS.name],
-    ["university", { university: "Institute of Business Administration" }, ROWS.university],
-    ["batch", { batchYear: 2019 }, ROWS.batch],
-  ])("stamps the %s onto its ruled line", async (_label, override, row) => {
-    const [before, after] = await Promise.all([
-      generateAmbassadorCardJpg(base),
-      generateAmbassadorCardJpg({ ...base, ...override }),
-    ]);
+    ["name", ROWS.name],
+    ["university and batch", ROWS.detail],
+  ])("stamps the %s into its slice of the detail band", async (_label, row) => {
+    const template = await fs.readFile(
+      path.join(process.cwd(), "templates", AMBASSADOR_CARD_TEMPLATE_FILE),
+    );
+    const rendered = await generateAmbassadorCardJpg(base);
 
-    const diff = await diffBounds(before, after);
+    const ink = await diffBounds(template, rendered, row);
 
-    // Rendered at all -- a host with no fonts would produce identical cards here.
-    expect(diff.found).toBe(true);
+    // Rendered at all -- a host with no fonts would leave the artwork untouched here.
+    expect(ink.found).toBe(true);
 
-    // Sits in its own row, below whatever precedes it...
-    expect(diff.minY).toBeGreaterThan(row.ceiling);
-    // ...and RESTS ON its rule. Both bounds matter: only checking that the text is
-    // above the line lets it float anywhere up the card and still pass, so the lower
-    // bound is what actually pins it to the design.
-    expect(diff.maxY).toBeLessThan(row.rule + TOLERANCE_PX);
-    expect(diff.maxY).toBeGreaterThan(row.rule - MAX_RULE_GAP);
+    // Confined to its own slice, so the two lines can neither collide nor drift onto
+    // the artwork above and below.
+    expect(ink.minY).toBeGreaterThan(row.top - TOLERANCE_PX);
+    expect(ink.maxY).toBeLessThan(row.bottom + TOLERANCE_PX);
 
-    // And within the horizontal span of that rule.
-    expect(diff.minX).toBeGreaterThan(row.left - TOLERANCE_PX);
-    expect(diff.maxX).toBeLessThan(row.right + TOLERANCE_PX);
+    // Inside the shield, which tapers -- the title's span is the proven-safe width.
+    expect(ink.minX).toBeGreaterThan(SAFE.left - TOLERANCE_PX);
+    expect(ink.maxX).toBeLessThan(SAFE.right + TOLERANCE_PX);
+
+    // CENTRED. The badge is a symmetric shield, so a line rendered left-aligned would
+    // still land inside every bound above while looking obviously wrong.
+    const inkCentre = (ink.minX + ink.maxX) / 2;
+    expect(Math.abs(inkCentre - CENTRE_X)).toBeLessThan(MAX_CENTRE_DRIFT);
   });
 
-  it("keeps an unusually long name within its rule instead of overflowing", async () => {
+  it("renders different names differently, proving fonts resolved", async () => {
+    // Two renders that share a template but differ in one field. On a host with no
+    // usable font both would come out identical.
+    const [a, b] = await Promise.all([
+      generateAmbassadorCardJpg({ ...base, fullName: "Ali" }),
+      generateAmbassadorCardJpg({ ...base, fullName: "Zainab Fatima Sheikh" }),
+    ]);
+
+    expect((await diffBounds(a, b, ROWS.name)).found).toBe(true);
+  });
+
+  it("keeps an unusually long name inside the shield, still centred", async () => {
     const [before, after] = await Promise.all([
       generateAmbassadorCardJpg(base),
       generateAmbassadorCardJpg({
@@ -126,8 +147,10 @@ describe("ambassador card generation", () => {
     const diff = await diffBounds(before, after);
 
     expect(diff.found).toBe(true);
-    expect(diff.maxX).toBeLessThan(ROWS.name.right + TOLERANCE_PX);
-    expect(diff.maxY).toBeLessThan(ROWS.name.rule + TOLERANCE_PX);
+    expect(diff.minX).toBeGreaterThan(SAFE.left - TOLERANCE_PX);
+    expect(diff.maxX).toBeLessThan(SAFE.right + TOLERANCE_PX);
+    expect(diff.maxY).toBeLessThan(ROWS.name.bottom + TOLERANCE_PX);
+    expect(Math.abs((diff.minX + diff.maxX) / 2 - CENTRE_X)).toBeLessThan(MAX_CENTRE_DRIFT);
   });
 
   it("does not let unescaped input break the composited overlay", async () => {
@@ -184,22 +207,29 @@ describe("ambassador sharing", () => {
 const TOLERANCE_PX = 8;
 
 /**
- * Furthest a value's lowest pixel may sit above its rule before it reads as floating
- * rather than written on the line. Capitals bottom out on the baseline, which
- * card-config lifts 16 px clear of the rule.
+ * The badge's centre line, and how far a stamped line's ink may sit from it before it
+ * reads as misaligned. Side bearings mean ink is never centred to the pixel even when
+ * the advance width is, so this is a band rather than an equality.
  */
-const MAX_RULE_GAP = 40;
+const CENTRE_X = 726;
+const MAX_CENTRE_DRIFT = 25;
+
+/** Widest span proven to fit the shield: the printed title's own bounding box. */
+const SAFE = { left: 164, right: 1283 };
 
 const ROWS = {
-  // ceiling: nothing for this value may be drawn above it. rule: the printed line the
-  // value rests on -- text must stay above it, never through or below it.
-  name: { ceiling: 1100, rule: 1300, left: 80, right: 788 },
-  university: { ceiling: 1302, rule: 1402, left: 80, right: 560 },
-  batch: { ceiling: 1404, rule: 1488, left: 80, right: 560 },
+  // The detail band runs y=728..1008; each line owns a slice of it. Nothing may be
+  // drawn outside its own slice, which is what keeps the two lines from colliding or
+  // drifting onto the artwork above and below.
+  name: { top: 728, bottom: 880 },
+  detail: { top: 880, bottom: 1008 },
 };
 
-/** Bounding box of the pixels that differ between two renders of the same card. */
-async function diffBounds(a: Buffer, b: Buffer) {
+/**
+ * Bounding box of the pixels that differ between two images, optionally restricted to
+ * a horizontal band so one line of the badge can be measured independently.
+ */
+async function diffBounds(a: Buffer, b: Buffer, zone?: { top: number; bottom: number }) {
   const [rawA, rawB] = await Promise.all([
     sharp(a).raw().toBuffer({ resolveWithObject: true }),
     sharp(b).raw().toBuffer({ resolveWithObject: true }),
@@ -211,7 +241,10 @@ async function diffBounds(a: Buffer, b: Buffer) {
   let maxX = -1;
   let maxY = -1;
 
-  for (let y = 0; y < height; y++) {
+  const yStart = zone ? Math.max(0, zone.top) : 0;
+  const yEnd = zone ? Math.min(height, zone.bottom) : height;
+
+  for (let y = yStart; y < yEnd; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * channels;
       // Well above JPEG compression noise, well below a real glyph edge.

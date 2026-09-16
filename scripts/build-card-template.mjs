@@ -27,22 +27,14 @@ import sharp from "sharp";
 const exec = promisify(execFile);
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
-const SOURCE_PDF = path.join(ROOT, "templates", "Ambassador Design 2.pdf");
+const SOURCE_PDF = path.join(ROOT, "templates", "Badge template.pdf");
 const OUTPUT = path.join(ROOT, "templates", "ambassador-card-background.jpg");
 
 /** 2x the PDF's point space. */
 const DPI = 144;
 
 /** What card-config.ts is currently calibrated to, for the drift report below. */
-const EXPECTED = {
-  width: 1512,
-  height: 2400,
-  rules: [
-    { label: "name", y: 1300, x0: 80, x1: 788 },
-    { label: "university", y: 1402, x0: 80, x1: 560 },
-    { label: "batch", y: 1488, x0: 80, x1: 560 },
-  ],
-};
+const EXPECTED = { width: 1452, height: 1512 };
 
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "mint-card-"));
 try {
@@ -64,57 +56,61 @@ try {
     );
   }
 
-  console.log("\nRuled lines found in the new artwork:");
-  const found = await findRules(OUTPUT);
-  for (const rule of found) console.log(`  y=${rule.y}  x=${rule.x0}..${rule.x1}`);
-
-  const drifted = EXPECTED.rules.filter(
-    (e) => !found.some((f) => Math.abs(f.y - e.y) <= 2 && Math.abs(f.x0 - e.x0) <= 2),
+  const { band, title } = await measureBadge(OUTPUT);
+  console.log("\nAnchors measured in the new artwork:");
+  console.log(`  detail band : y=${band.top}..${band.bottom}`);
+  console.log(`  title       : x=${title.left}..${title.right}  centre=${title.centre}`);
+  console.log(
+    "\nCheck these against CARD_WIDTH/CENTRE_X and the box baselines in\n" +
+      "src/lib/ambassador/card-config.ts, and the BADGE constants in\n" +
+      "tests/ambassador.test.ts. `npm test` asserts the stamped text lands inside them.",
   );
-  if (drifted.length) {
-    console.warn(
-      `\n!! These rules moved: ${drifted.map((d) => `${d.label} (was y=${d.y})`).join(", ")}.\n` +
-        `   Re-measure the boxes in src/lib/ambassador/card-config.ts and the ROWS\n` +
-        `   constants in tests/ambassador.test.ts against the list above.`,
-    );
-  } else {
-    console.log("\nLayout unchanged — existing calibration still applies.");
-  }
 } finally {
   await fs.rm(tmp, { recursive: true, force: true });
 }
 
-/** Rows carrying a long horizontal run of mid-grey on white are the fill-in rules. */
-async function findRules(file) {
+/**
+ * Measures the two anchors the badge layout depends on: the lighter tonal band left
+ * empty for the ambassador's details, and the printed title, whose span establishes the
+ * centre line and a text width already proven to fit inside the shield.
+ */
+async function measureBadge(file) {
   const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
-  const rules = [];
+  const px = (x, y) => {
+    const i = (y * width + x) * channels;
+    return [data[i], data[i + 1], data[i + 2]];
+  };
 
-  for (let y = 0; y < height; y++) {
-    let run = 0;
-    let start = -1;
-    let best = 0;
-    let bestStart = -1;
-
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * channels;
-      const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
-      const grey = Math.abs(r - g) < 12 && Math.abs(g - b) < 12 && r > 150 && r < 225;
-
-      if (grey) {
-        if (run === 0) start = x;
-        run++;
-        if (run > best) { best = run; bestStart = start; }
-      } else {
-        run = 0;
+  // Title: bright pixels, below the logo wordmark and above the detail band.
+  let left = Infinity, right = -1;
+  for (let y = Math.round(height * 0.37); y < Math.round(height * 0.47); y++) {
+    for (let x = 100; x < width - 100; x++) {
+      const [r, g, b] = px(x, y);
+      if (r > 235 && g > 235 && b > 235) {
+        if (x < left) left = x;
+        if (x > right) right = x;
       }
-    }
-
-    // Long enough to be a rule, and only the first row of each 2px-thick line.
-    if (best > 250 && !rules.some((p) => y - p.y <= 2)) {
-      rules.push({ y, x0: bestStart, x1: bestStart + best });
     }
   }
 
-  return rules;
+  // Band: the teal lightens where the details go, then darkens again below.
+  const centre = Math.round(width / 2);
+  let top = null, bottom = null, prev = px(centre, Math.round(height * 0.45));
+  for (let y = Math.round(height * 0.45); y < Math.round(height * 0.75); y++) {
+    const c = px(centre, y);
+    const delta = Math.abs(c[0] - prev[0]) + Math.abs(c[1] - prev[1]) + Math.abs(c[2] - prev[2]);
+    // Only the first two transitions matter: into the band and back out of it.
+    // Later ones are the mascot's edges further down the shield.
+    if (delta > 12 && bottom === null) {
+      if (top === null) top = y;
+      else bottom = y;
+    }
+    prev = c;
+  }
+
+  return {
+    band: { top, bottom },
+    title: { left, right, centre: Math.round((left + right) / 2) },
+  };
 }

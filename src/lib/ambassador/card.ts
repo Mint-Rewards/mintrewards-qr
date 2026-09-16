@@ -10,12 +10,12 @@ import {
   BOLD_THRESHOLD,
   CARD_WIDTH,
   CARD_HEIGHT,
+  DETAIL_BOX,
+  DETAIL_SEPARATOR,
   FONT_BOLD_FILE,
   FONT_REGULAR_FILE,
   MIN_FONT_SIZE,
   NAME_BOX,
-  UNIVERSITY_BOX,
-  BATCH_BOX,
   type TextBox,
 } from "./card-config";
 
@@ -49,16 +49,17 @@ export async function generateAmbassadorCardJpg(
     );
   }
 
-  const [name, university, batch] = await Promise.all([
+  // The badge carries university and batch on a single line, not as separate fields.
+  const detail = `${input.university}${DETAIL_SEPARATOR}Batch ${input.batchYear}`;
+
+  const [name, details] = await Promise.all([
     renderLine(NAME_BOX, input.fullName),
-    renderLine(UNIVERSITY_BOX, input.university),
-    // The design's third line reads "Batch 2027", not a bare year.
-    renderLine(BATCH_BOX, `Batch ${input.batchYear}`),
+    renderLine(DETAIL_BOX, detail),
   ]);
 
   const overlay =
     `<svg width="${CARD_WIDTH}" height="${CARD_HEIGHT}" xmlns="http://www.w3.org/2000/svg">` +
-    name + university + batch +
+    name + details +
     `</svg>`;
 
   return sharp(background)
@@ -127,9 +128,17 @@ async function renderLine(box: TextBox, rawValue: string): Promise<string> {
   );
   const fitted = fitToBox(font, value, box);
 
+  // For a centred line, box.x is the shield's centre rather than the run's left edge,
+  // so the pen has to start half the rendered width to its left. Measured after
+  // fitting, since shrinking changes the width.
+  const penX =
+    box.align === "center"
+      ? box.x - font.getAdvanceWidth(fitted.value, fitted.fontSize) / 2
+      : box.x;
+
   // Glyph outlines, not <text>: nothing here depends on a font being installed on the
   // machine that renders the card.
-  const outline = font.getPath(fitted.value, box.x, box.y, fitted.fontSize);
+  const outline = font.getPath(fitted.value, penX, box.y, fitted.fontSize);
   outline.fill = box.color;
 
   return outline.toSVG(2);

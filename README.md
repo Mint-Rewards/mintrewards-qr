@@ -232,65 +232,40 @@ On submit (`submitAmbassadorRegistration`, a server action using the service-rol
 4. The student sees an inline welcome screen with the card, a download button, and
    LinkedIn/Instagram share buttons.
 
-### The card template
+### The badge template
 
-`templates/ambassador-card-background.jpg` is **Ambassador Design 2**, flattened from
-`templates/Ambassador Design 2.pdf`. The PDF is 756 × 1200 pt and is rasterised at 144 dpi
-— exactly 2× its point space — giving a 1512 × 2400 background where every measurement is
-a whole pixel.
+`templates/ambassador-card-background.jpg` is **Badge template.pdf**, flattened to
+1452 × 1512 — the PDF is 726 × 756 pt rasterised at 144 dpi, exactly 2× its point space,
+so every coordinate is a whole pixel.
 
-The three values are written onto the design's own ruled lines, which were **measured, not
-estimated**: the raster was scanned for rows of grey pixels, putting the rules at `y=1300`
-(x 80–788), `y=1402` and `y=1488` (both x 80–560). Each baseline sits 16 px above its rule
-so the text rests on the line. The name is set in capitals in the card's teal, matching the
-design.
+Unlike a form-style card, this artwork has **no ruled lines to write on**, so the anchors
+are measured features of the shield itself:
 
-### Updating the design
+- the lighter **tonal band at `y=728..1008`**, left empty for the ambassador's details
+- the printed **title spanning `x=164..1283`, centred on `x=724`**, which establishes both
+  the centre line and a text width already proven to fit inside the tapering shield
 
-Drop the new artwork in at `templates/Ambassador Design 2.pdf` — same path, same name —
-and run:
+Two lines are stamped, both **centred**: the name in capitals, and university and batch
+composed onto a single line (`University of Lahore  |  Batch 2027`).
+
+To swap in different artwork, drop it at `templates/Badge template.pdf` and run:
 
 ```bash
 npm run build:card-template     # needs poppler (pdftoppm)
 ```
 
-That re-flattens the background at 144 dpi and then **re-measures the ruled lines**,
-reporting whether the layout still matches what `card-config.ts` is calibrated to:
+It re-flattens and re-measures, printing the anchors to check against
+`src/lib/ambassador/card-config.ts` and the constants in `tests/ambassador.test.ts`:
 
 ```
-Ruled lines found in the new artwork:
-  y=1300  x=80..788
-  y=1402  x=80..560
-  y=1488  x=80..560
-
-Layout unchanged — existing calibration still applies.
+Anchors measured in the new artwork:
+  detail band : y=728..1008
+  title       : x=165..1283  centre=724
 ```
 
-If the artwork only changes wording or colour, that's the whole job — commit the
-regenerated JPG and you're done. If the script reports moved rules or a changed page
-size, re-measure `NAME_BOX`/`UNIVERSITY_BOX`/`BATCH_BOX` in
-`src/lib/ambassador/card-config.ts` and the `ROWS` constants in `tests/ambassador.test.ts`
-(which describe the template, not the config — see below) against the numbers it printed.
-Generation **throws** on a page-size change rather than stamping text in the wrong place.
-
-Then check it at `/dev/ambassador-card-preview` (auth required; `?name=`, `?university=`
-and `?batchYear=` override the dummy data) and run `npm test`.
-
-> **Known issue in the current artwork:** the heading reads **"MINT ABASSADOR"** — missing
-> the M. It is baked into the supplied PDF, so it can only be fixed in the design file and
-> re-flattened with the command above.
-
-Values are **measured, then fitted**: each line is rendered and trimmed to get its true
-width, shrunk proportionally if it exceeds its slot, and truncated only once it hits
-`MIN_FONT_SIZE`. A per-character width estimate is not good enough here — long names are
-the norm, and "Muhammad Abdul Rahman Khan" renders ~6% wider than an em-ratio predicts,
-which is enough to push it over the panel border.
-
-> ### ⚠️ Card text depends on fonts being installed on the host
-> sharp renders SVG text through the system's fontconfig. A deployment host with no fonts
-> produces a card with **blank value slots** and no error. `tests/ambassador.test.ts`
-> catches this — it diffs two renders that differ only in one field, so missing text means
-> identical images and a failed test. Verify on the real host before the launch.
+Generation **throws** if the page size changes rather than stamping text in the wrong
+place, and `npm test` asserts each line lands in its own slice of the band, inside the
+shield, and centred.
 
 ### Why sharing works the way it does
 
@@ -329,17 +304,21 @@ back out**, asserting the iOS payload sits in the iPhone box and Android in the 
 box. A coordinate typo or swapped platform fails CI instead of reaching a print shop.
 It requires poppler (`pdftoppm`); without it those assertions skip with a warning.
 
-The ambassador card has an equivalent test: it renders two cards differing in exactly one
-field, diffs the pixels, and asserts the changed region **rests on that field's ruled line**
-and stays within the rule's horizontal span. Those bounds are measured from the template
-image, not imported from `card-config.ts` — asserting against the same constants that drove
-the render would pass no matter how wrong the calibration was.
+The ambassador badge has an equivalent test. It differences a rendered badge against the
+**blank template** to isolate exactly the stamped pixels, splits them by row, and asserts
+each line sits in its own slice of the detail band, inside the shield, and **centred**.
+Those bounds are measured from the template image, not imported from `card-config.ts` —
+asserting against the same constants that drove the render would pass no matter how wrong
+the calibration was.
 
-Both vertical bounds matter. Checking only that text sits *above* its rule lets it float
-anywhere up the card and still pass; the lower bound is what pins it to the design. The
-suite is mutation-checked against a value shifted off its rule, dropped below it, widened
-past it, and two rows swapped. It also catches a font-less deployment host, since two
-different names would then render identically.
+Differencing against the blank artwork rather than against another render matters:
+swapping the batch year only changes a few glyphs at the right-hand end of the shared
+detail line, so a render-to-render diff is a fragment sitting well off-centre and says
+nothing about where the line actually is.
+
+The suite is mutation-checked against a line left-aligned instead of centred, pushed into
+the neighbouring row, and allowed to overrun the shield. It also catches a font-less
+deployment host, since two different names would then render identically.
 
 Coverage: tracking-code entropy/uniqueness/charset, user-agent parsing, redirect
 destinations, invalid-code fallback, `no-store`, scan recording and attribution,
