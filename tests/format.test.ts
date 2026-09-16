@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDateTime, formatDate } from "@/lib/format";
+import { formatDateTime, formatDate, formatDateTimeForExport } from "@/lib/format";
 
 /**
  * These run in whatever timezone the machine happens to be in, which is the point:
@@ -37,5 +37,48 @@ describe("admin date formatting", () => {
 
   it("accepts a Date as readily as an ISO string", () => {
     expect(formatDateTime(new Date(utcMorning))).toBe(formatDateTime(utcMorning));
+  });
+});
+
+/**
+ * The export format is deliberately different from the display one.
+ *
+ * "16 Sept 2026, 03:50 pm" is pleasant to read and useless in a spreadsheet: Excel
+ * keeps it as text, so the column will not sort chronologically. Year-first with a
+ * 24-hour clock parses as a real datetime, and still sorts correctly as text when it
+ * does not.
+ */
+describe("CSV export date formatting", () => {
+  it("writes a sortable, spreadsheet-parseable value in Pakistan time", () => {
+    // 05:50 UTC -> 10:50 PKT
+    expect(formatDateTimeForExport("2026-09-16T05:50:44.000Z")).toBe("2026-09-16 10:50");
+  });
+
+  it("rolls the date over with the timezone", () => {
+    expect(formatDateTimeForExport("2026-09-16T20:30:00.000Z")).toBe("2026-09-17 01:30");
+  });
+
+  it("sorts chronologically as plain text, which is how a CSV column is sorted", () => {
+    const iso = [
+      "2026-09-16T20:30:00.000Z",
+      "2026-01-02T05:00:00.000Z",
+      "2026-09-16T05:50:00.000Z",
+    ];
+    const formatted = iso.map(formatDateTimeForExport);
+
+    expect([...formatted].sort()).toEqual(
+      [...iso].sort().map(formatDateTimeForExport),
+    );
+  });
+
+  it("renders midnight as 00:xx, never 24:xx", () => {
+    // 19:10 UTC is 00:10 the next day in Karachi.
+    expect(formatDateTimeForExport("2026-09-16T19:10:00.000Z")).toBe("2026-09-17 00:10");
+  });
+
+  it("leaves the cell empty for a scan that never happened", () => {
+    expect(formatDateTimeForExport(null)).toBe("");
+    expect(formatDateTimeForExport(undefined)).toBe("");
+    expect(formatDateTimeForExport("not a date")).toBe("");
   });
 });

@@ -42,3 +42,40 @@ export function formatDateTime(value: string | Date): string {
 export function formatDate(value: string | Date): string {
   return dateOnly.format(new Date(value));
 }
+
+/**
+ * Spreadsheet format: "2026-09-16 15:50", Pakistan time.
+ *
+ * Deliberately NOT the display format. "16 Sept 2026, 03:50 pm" is pleasant to read
+ * and useless in a spreadsheet -- Excel treats it as text, so the column will not sort
+ * chronologically and cannot be filtered by date. Year-first with a 24-hour clock is
+ * parsed as a real datetime and sorts correctly even when it is not.
+ *
+ * The zone is carried by the column HEADER rather than the value, since a suffix on
+ * every cell would break that parsing again.
+ */
+const exportParts = new Intl.DateTimeFormat("en-GB", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  // h23 rather than hour12:false: the latter renders midnight as "24" in some locales.
+  hourCycle: "h23",
+  timeZone: TIME_ZONE,
+});
+
+export function formatDateTimeForExport(value: string | Date | null | undefined): string {
+  // Blank rather than "Invalid Date" -- an empty cell is what a spreadsheet expects
+  // for a scan that never happened.
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = exportParts.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+}

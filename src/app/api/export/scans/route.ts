@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { csvResponse, stamped, toCsv } from "@/lib/csv";
+import { formatDateTimeForExport } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
     const member = one(r.team_members);
     const assignment = one(r.qr_assignments);
     return {
-      scanned_at: r.scanned_at,
+      scanned_at: formatDateTimeForExport(r.scanned_at as string),
       team_member: member.full_name ?? "",
       assignment: assignment.title ?? "",
       reference_code: assignment.reference_code ?? "",
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
   });
 
   const csv = toCsv(rows, [
-    { key: "scanned_at", header: "Scanned At" },
+    { key: "scanned_at", header: "Scanned At (PKT)" },
     { key: "team_member", header: "Team Member" },
     { key: "assignment", header: "Assignment" },
     { key: "reference_code", header: "Reference Code" },

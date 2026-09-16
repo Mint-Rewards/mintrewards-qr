@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { csvResponse, stamped, toCsv } from "@/lib/csv";
+import { formatDateTimeForExport } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,13 @@ export async function GET() {
 
   if (error) return new Response(error.message, { status: 500 });
 
-  const csv = toCsv(data ?? [], [
+  // The view hands back a raw timestamp; only this column needs converting.
+  const rows = (data ?? []).map((row) => ({
+    ...row,
+    last_scan_at: formatDateTimeForExport(row.last_scan_at as string | null),
+  }));
+
+  const csv = toCsv(rows, [
     { key: "title", header: "Assignment" },
     { key: "reference_code", header: "Reference Code" },
     { key: "team_member_name", header: "Team Member" },
@@ -30,7 +37,7 @@ export async function GET() {
     { key: "ios_scans", header: "iOS Scans" },
     { key: "android_scans", header: "Android Scans" },
     { key: "scans_last_7d", header: "Scans (7d)" },
-    { key: "last_scan_at", header: "Last Scan" },
+    { key: "last_scan_at", header: "Last Scan (PKT)" },
   ]);
 
   return csvResponse(csv, stamped("mintrewards-assignments"));

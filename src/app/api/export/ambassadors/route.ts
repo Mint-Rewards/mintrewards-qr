@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { csvResponse, stamped, toCsv } from "@/lib/csv";
 import { AMBASSADOR_STATUS_LABELS } from "@/lib/ambassador/config";
+import { formatDateTimeForExport } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
       reference_code: campaign.reference_code ?? "",
       event_name: campaign.event_name ?? "",
       city: campaign.city ?? "",
-      registered_at: raw.created_at,
+      registered_at: formatDateTimeForExport(raw.created_at as string),
     };
   });
 
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
     { key: "reference_code", header: "Reference Code" },
     { key: "event_name", header: "Event" },
     { key: "city", header: "City" },
-    { key: "registered_at", header: "Registered At" },
+    { key: "registered_at", header: "Registered At (PKT)" },
   ]);
 
   return csvResponse(csv, stamped("mint-ambassadors"));
