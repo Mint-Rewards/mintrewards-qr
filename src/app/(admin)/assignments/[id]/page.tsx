@@ -4,6 +4,10 @@ import { Pencil, Download } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { generateQrDataUrl } from "@/lib/qr";
 import { formatDateTime } from "@/lib/format";
+import {
+  STANDEE_LANGUAGE_LABELS,
+  type StandeeLanguage,
+} from "@/lib/standee/config";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { CopyButton } from "@/components/common/copy-button";
@@ -56,6 +60,16 @@ export default async function AssignmentDetailPage({
 
   const ios = qrCodes.find((c) => c.platform === "ios");
   const android = qrCodes.find((c) => c.platform === "android");
+
+  // standees is ordered newest-first, so the first row per language is that language's
+  // most recent generation.
+  const seenLanguages = new Set<string>();
+  const latestByLanguage = ((standees ?? []) as { language: string; generated_at: string }[])
+    .filter((s) => {
+      if (seenLanguages.has(s.language)) return false;
+      seenLanguages.add(s.language);
+      return true;
+    });
 
   // Previews are rendered on demand from the tracking URL -- the same string the printed
   // standee encodes, so what is shown here is exactly what ships.
@@ -119,14 +133,20 @@ export default async function AssignmentDetailPage({
         <CardContent className="space-y-3">
           <StandeeActions assignmentId={a.id} hasStandee={(standees ?? []).length > 0} />
           <p className="text-muted-foreground text-xs">
-            Stamps both QR codes into the Mint Rewards standee template. The original
+            Generates an English and an Urdu sheet from the same two QR codes, so either
+            can be placed in the field and scans attribute identically. Each original
             design is preserved exactly; only the QR placeholders are filled.
           </p>
-          {(standees ?? []).length > 0 && (
-            <p className="text-muted-foreground text-xs">
-              {standees!.length} version{standees!.length === 1 ? "" : "s"} generated ·
-              latest {formatDateTime(standees![0].generated_at)}
-            </p>
+          {latestByLanguage.length > 0 && (
+            <div className="text-muted-foreground space-y-0.5 text-xs">
+              {latestByLanguage.map(({ language, generated_at }) => (
+                <div key={language}>
+                  {STANDEE_LANGUAGE_LABELS[language as StandeeLanguage] ?? language}
+                  {" · generated "}
+                  {formatDateTime(generated_at)}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

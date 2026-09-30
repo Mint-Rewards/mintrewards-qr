@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateStandeePdf, standeeStoragePath } from "@/lib/standee/generate";
-import { DEFAULT_STANDEE_LANGUAGE } from "@/lib/standee/config";
+import { STANDEE_LANGUAGES, type StandeeLanguage } from "@/lib/standee/config";
 import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -11,13 +11,25 @@ export const dynamic = "force-dynamic";
 /** Signed download links are short-lived; the bucket stays private. */
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
+export interface StandeeResult {
+  language: StandeeLanguage;
+  url: string;
+  filePath: string;
+}
+
 /**
- * Generates (or regenerates) the printable standee for an assignment.
+ * Generates (or regenerates) the printable standees for an assignment.
  *
- * Auth is checked with the session client first; only then does the service-role client
- * touch storage. Regenerating is always allowed and always produces a NEW object rather
- * than overwriting: a previously downloaded PDF may already be at a print vendor, so
- * history stays intact and auditable.
+ * Every assignment produces BOTH an English and an Urdu standee from the same pair of
+ * tracking codes, so the two sheets are interchangeable in the field and a scan is
+ * attributed identically whichever one the resident reads.
+ *
+ * The Urdu template is RTL-mirrored (iOS right, Android left). That mapping lives in
+ * standee/config.ts and is applied per-template, never assumed from position.
+ *
+ * Both PDFs are rendered before anything is uploaded, and uploads are rolled back if a
+ * later step fails, so an assignment never ends up with one language stored and the
+ * other missing.
  */
 export async function POST(
   _request: Request,
@@ -56,52 +68,72 @@ export async function POST(
     );
   }
 
+  const admin = createAdminClient();
+  const uploaded: string[] = [];
+
   try {
-    const language = DEFAULT_STANDEE_LANGUAGE;
-    const { pdf, template } = await generateStandeePdf({
-      iosTrackingUrl: ios.tracking_url,
-      androidTrackingUrl: android.tracking_url,
-      language,
-    });
+    // Render every language up front: a template or coordinate problem should fail
+    // before anything reaches storage.
+    const rendered = await Promise.all(
+      STANDEE_LANGUAGES.map(async (language) => {
+        const { pdf, template } = await generateStandeePdf({
+          iosTrackingUrl: ios.tracking_url,
+          androidTrackingUrl: android.tracking_url,
+          language,
+        });
+        return { language, pdf, template };
+      }),
+    );
 
-    // Storage writes and the generated_standees insert use the service role: the bucket
-    // is private and qr/standee rows are not client-writable.
-    const admin = createAdminClient();
-    const filePath = standeeStoragePath(id, assignment.reference_code, language);
+    const results: StandeeResult[] = [];
 
-    const { error: uploadError } = await admin.storage
-      .from(env.GENERATED_STANDEES_BUCKET)
-      .upload(filePath, pdf, { contentType: "application/pdf", upsert: false });
+    for (const { language, pdf, template } of rendered) {
+      const filePath = standeeStoragePath(id, assignment.reference_code, language);
 
-    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+      const { error: uploadError } = await admin.storage
+        .from(env.GENERATED_STANDEES_BUCKET)
+        .upload(filePath, pdf, { contentType: "application/pdf", upsert: false });
 
-    const { error: insertError } = await admin.from("generated_standees").insert({
-      assignment_id: id,
-      template_name: template.templateName,
-      language,
-      file_path: filePath,
-      file_type: "pdf",
-      generated_by: user.id,
-    });
+      if (uploadError) throw new Error(`Upload failed (${language}): ${uploadError.message}`);
+      uploaded.push(filePath);
 
-    if (insertError) throw new Error(`Record failed: ${insertError.message}`);
+      const { error: insertError } = await admin.from("generated_standees").insert({
+        assignment_id: id,
+        template_name: template.templateName,
+        language,
+        file_path: filePath,
+        file_type: "pdf",
+        generated_by: user.id,
+      });
 
-    const { data: signed, error: signError } = await admin.storage
-      .from(env.GENERATED_STANDEES_BUCKET)
-      .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS);
+      if (insertError) throw new Error(`Record failed (${language}): ${insertError.message}`);
 
-    if (signError || !signed) throw new Error("Could not create download link.");
+      const { data: signed, error: signError } = await admin.storage
+        .from(env.GENERATED_STANDEES_BUCKET)
+        .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS);
 
-    return NextResponse.json({ url: signed.signedUrl, filePath });
+      if (signError || !signed) throw new Error(`Could not create ${language} download link.`);
+
+      results.push({ language, url: signed.signedUrl, filePath });
+    }
+
+    return NextResponse.json({ standees: results });
   } catch (err) {
-    // Surfaced to an authenticated admin, so a real message is useful here -- unlike the
-    // public redirect route, which must never reveal internals.
+    // Leave no half-generated set behind: an assignment showing only one language would
+    // be worse than showing none, because it looks complete.
+    if (uploaded.length > 0) {
+      await admin.storage.from(env.GENERATED_STANDEES_BUCKET).remove(uploaded);
+      await admin
+        .from("generated_standees")
+        .delete()
+        .in("file_path", uploaded);
+    }
     const message = err instanceof Error ? err.message : "Standee generation failed.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-/** Fresh signed link for the most recent standee, since links expire. */
+/** Fresh signed links for the most recent standee of each language. */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
@@ -112,26 +144,37 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: latest } = await supabase
+  const { data: rows } = await supabase
     .from("generated_standees")
-    .select("file_path")
+    .select("language, file_path, generated_at")
     .eq("assignment_id", id)
-    .order("generated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("generated_at", { ascending: false });
 
-  if (!latest) {
+  if (!rows || rows.length === 0) {
     return NextResponse.json({ error: "No standee generated yet." }, { status: 404 });
   }
 
-  const admin = createAdminClient();
-  const { data: signed, error } = await admin.storage
-    .from(env.GENERATED_STANDEES_BUCKET)
-    .createSignedUrl(latest.file_path, SIGNED_URL_TTL_SECONDS);
-
-  if (error || !signed) {
-    return NextResponse.json({ error: "Could not create download link." }, { status: 500 });
+  // Rows are newest-first, so the first occurrence of each language is its latest.
+  const latest = new Map<string, string>();
+  for (const row of rows) {
+    if (!latest.has(row.language)) latest.set(row.language, row.file_path);
   }
 
-  return NextResponse.json({ url: signed.signedUrl, filePath: latest.file_path });
+  const admin = createAdminClient();
+  const standees: StandeeResult[] = [];
+
+  for (const language of STANDEE_LANGUAGES) {
+    const filePath = latest.get(language);
+    if (!filePath) continue;
+    const { data: signed } = await admin.storage
+      .from(env.GENERATED_STANDEES_BUCKET)
+      .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS);
+    if (signed) standees.push({ language, url: signed.signedUrl, filePath });
+  }
+
+  if (standees.length === 0) {
+    return NextResponse.json({ error: "Could not create download links." }, { status: 500 });
+  }
+
+  return NextResponse.json({ standees });
 }

@@ -75,13 +75,13 @@ export const STANDEE_TEMPLATES: Record<StandeeLanguage, StandeeTemplate> = {
   },
 
   /**
-   * NOT WIRED UP FOR v1 -- measured and verified, kept here so it never has to be
-   * rediscovered.
+   * !! RTL-MIRRORED: iOS is on the RIGHT and Android on the LEFT -- the reverse of the
+   * !! English template. The boxes also sit 17 pt higher.
    *
-   * !! The Urdu template is RTL-MIRRORED: iOS is on the RIGHT and Android on the LEFT,
-   * !! the reverse of the English template. Its boxes also sit 17 pt higher.
    * Assuming "left == iOS" would send every iPhone user to the Play Store, and the
    * mistake is invisible in the generated PDF unless you read Urdu or decode the codes.
+   * This is why callers must always resolve a box via getQrBox(template, platform)
+   * rather than by position. Covered by tests/standee.test.ts.
    */
   urdu: {
     templateName: "Mint Rewards Standee Template - Urdu",
@@ -95,8 +95,21 @@ export const STANDEE_TEMPLATES: Record<StandeeLanguage, StandeeTemplate> = {
   },
 };
 
-/** The only language offered in v1. */
+/**
+ * Every assignment generates a standee in each of these languages, from the same pair of
+ * tracking codes -- so the sheets are interchangeable in the field and a scan attributes
+ * identically whichever one the resident reads.
+ */
+export const STANDEE_LANGUAGES: readonly StandeeLanguage[] = ["english", "urdu"] as const;
+
+/** Used where a single language must be picked (e.g. the calibration preview). */
 export const DEFAULT_STANDEE_LANGUAGE: StandeeLanguage = "english";
+
+/** Display label for the admin UI. */
+export const STANDEE_LANGUAGE_LABELS: Record<StandeeLanguage, string> = {
+  english: "English",
+  urdu: "Urdu",
+};
 
 export function getStandeeTemplate(
   language: StandeeLanguage = DEFAULT_STANDEE_LANGUAGE,
