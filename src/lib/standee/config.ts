@@ -46,15 +46,32 @@ export const QR_INSET_PT = 10;
  * QR is 210 x 210 pt after QR_INSET_PT on each side.
  */
 export const STANDEE_TEMPLATES: Record<StandeeLanguage, StandeeTemplate> = {
+  /**
+   * A4 flyer, NOT the 12"x30" roll-up the first version used. The artwork was replaced
+   * wholesale, so every coordinate below was re-measured against the new file rather
+   * than scaled from the old one.
+   *
+   * The placeholders here are two white cards, each carrying a store label above the
+   * gap and a caption below it. The QR belongs in the inkless band between them, which
+   * was found by scanning the 72 dpi raster for rows inside each card containing no
+   * ink at all:
+   *
+   *   iPhone card   x 290..383,  clear band y 107..168
+   *   Android card  x 398..490,  clear band y 110..168
+   *
+   * Both QRs use one size and one baseline taken from the tighter of the two bands, so
+   * the pair sits level. 54 pt square leaves ~2.5 pt of card above and below, on top of
+   * the quiet zone the QR image carries in its own margin.
+   */
   english: {
     templateName: "Mint Rewards Standee Template - English",
     fileName: "Mint_Rewards_Standee_English.pdf",
     page: 0,
-    pageSize: { width: 864, height: 2160 },
-    // Left card, labelled "iPhone".
-    iosQrBox: { x: 132, y: 212, width: 210, height: 210 },
-    // Right card, labelled "Android".
-    androidQrBox: { x: 522, y: 212, width: 210, height: 210 },
+    pageSize: { width: 595, height: 842 },
+    // Left card, labelled "iPhone". Centred on the card at x=336.5.
+    iosQrBox: { x: 310, y: 676, width: 54, height: 54 },
+    // Right card, labelled "Android". Centred on the card at x=444.
+    androidQrBox: { x: 417, y: 676, width: 54, height: 54 },
   },
 
   /**

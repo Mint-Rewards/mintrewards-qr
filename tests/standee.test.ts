@@ -37,17 +37,27 @@ async function hasPdftoppm(): Promise<boolean> {
   }
 }
 
-/** Decodes the QR inside a given box of the rendered page. Rendered at 72dpi: 1px = 1pt. */
+/**
+ * Rasterisation scale. 72 dpi would make 1 px == 1 pt and keep the maths trivial, but
+ * the A4 artwork's QR is 54 pt square: at 1 px/pt a ~29-module code lands under 2 px
+ * per module and jsQR cannot read it even when the placement is perfect. Rendering
+ * larger separates "the QR is in the wrong place" from "the raster was too coarse to
+ * tell".
+ */
+const RENDER_DPI = 288;
+const SCALE = RENDER_DPI / 72;
+
+/** Decodes the QR inside a given box of the rendered page. */
 function decodeBox(
   png: PNG,
   box: { x: number; y: number; width: number; height: number },
   pageHeight: number,
 ): string | null {
   // config y is measured from the bottom (pdf-lib); image y is from the top.
-  const top = Math.round(pageHeight - box.y - box.height);
-  const left = Math.round(box.x);
-  const w = Math.round(box.width);
-  const h = Math.round(box.height);
+  const top = Math.round((pageHeight - box.y - box.height) * SCALE);
+  const left = Math.round(box.x * SCALE);
+  const w = Math.round(box.width * SCALE);
+  const h = Math.round(box.height * SCALE);
 
   const data = new Uint8ClampedArray(w * h * 4);
   for (let j = 0; j < h; j++) {
@@ -78,9 +88,9 @@ describe("standee generation", () => {
     const doc = await PDFDocument.load(pdf);
     expect(doc.getPageCount()).toBe(1);
     const page = doc.getPages()[0];
-    // The design must survive untouched: same page count, same 12"x30" geometry.
-    expect(Math.round(page.getWidth())).toBe(864);
-    expect(Math.round(page.getHeight())).toBe(2160);
+    // The design must survive untouched: same page count, same A4 geometry.
+    expect(Math.round(page.getWidth())).toBe(595);
+    expect(Math.round(page.getHeight())).toBe(842);
   });
 
   it("rejects a template whose page size no longer matches the calibration", async () => {
@@ -112,8 +122,8 @@ describe("standee generation", () => {
       const dir = await fs.mkdtemp(path.join(os.tmpdir(), "standee-"));
       const pdfPath = path.join(dir, "out.pdf");
       await fs.writeFile(pdfPath, pdf);
-      await exec("pdftoppm", ["-png", "-r", "72", "-f", "1", "-l", "1", pdfPath,
-                              path.join(dir, "page")]);
+      await exec("pdftoppm", ["-png", "-r", String(RENDER_DPI), "-f", "1", "-l", "1",
+                              pdfPath, path.join(dir, "page")]);
 
       const rendered = path.join(dir, "page-1.png");
       const png = PNG.sync.read(await fs.readFile(rendered));

@@ -159,9 +159,22 @@ placeholder boxes located by connected-component analysis, then verified by stam
 re-rasterising and machine-decoding the codes back out.
 
 ```
-Template: 864 × 2160 pt (12" × 30"), single page
-English:  iOS  x=132 y=212   Android x=522 y=212   (210 × 210, bottom-left origin)
+English:  A4, 595 × 842 pt, single page
+          iOS x=310 y=676   Android x=417 y=676   (54 × 54, bottom-left origin)
+Urdu:     864 × 2160 pt (12" × 30"), single page
+          iOS x=522 y=229   Android x=132 y=229   (210 × 210, mirrored — see below)
 ```
+
+The English artwork is an **A4 flyer**, not the 12" × 30" roll-up the first version used,
+so its coordinates were re-measured from scratch rather than scaled. Its placeholders are
+two white cards, each with a store label above the gap and a caption below; the QR goes in
+the inkless band between them, located by scanning the raster for rows inside each card
+containing no ink at all. Both codes share one size and baseline taken from the tighter of
+the two bands, so the pair sits level.
+
+> **The A4 QR is 54 pt — about 19 mm printed at 100%**, against 74 mm on the roll-up. That
+> is fine in the hand and much weaker at a distance. If these are ever posted on a wall
+> rather than handed out, the placeholders need to grow.
 
 ### The Urdu template is mirrored
 
