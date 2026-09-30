@@ -239,7 +239,14 @@ function QrPanel({
         </div>
         <div className="flex flex-wrap gap-2">
           <CopyButton value={code.tracking_url} label="Copy URL" />
-          <Button variant="outline" size="sm" render={<Link href={code.tracking_url} target="_blank" />}>
+          {/* A plain <a>, deliberately NOT next/link. The tracking URL is same-origin,
+              so next/link would treat it as an app route and prefetch it on render --
+              silently logging a scan every time this page loads. */}
+          <Button
+            variant="outline"
+            size="sm"
+            render={<a href={code.tracking_url} target="_blank" rel="noopener noreferrer" />}
+          >
             Test scan
           </Button>
         </div>

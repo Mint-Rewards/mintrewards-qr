@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { Leaf } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidTrackingCodeShape } from "@/lib/tracking-code";
-import { extractClientIp, parseUserAgent } from "@/lib/user-agent";
+import { extractClientIp, isPrefetchRequest, parseUserAgent } from "@/lib/user-agent";
 import { AmbassadorRegistrationForm } from "@/components/ambassador/registration-form";
 import type { University } from "@/lib/types";
 
@@ -58,7 +58,13 @@ export default async function AmbassadorFormPage({
   // Logged after the page is already on its way to the browser, same rule as the
   // scan redirect route: a logging hiccup must never slow down or fail the page a
   // real student is looking at.
+  // A speculative fetch is not a student looking at the form. This page is same-origin
+  // with the admin UI, so any next/link to it would otherwise log a view on every
+  // render -- and browsers and link scanners speculate too.
+  const speculative = isPrefetchRequest(requestHeaders);
+
   after(async () => {
+    if (speculative) return;
     try {
       await admin.from("ambassador_scan_events").insert({
         campaign_id: campaignId,

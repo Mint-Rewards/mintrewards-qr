@@ -96,3 +96,33 @@ export function extractClientIp(headers: Headers): string | null {
     null
   );
 }
+
+
+/**
+ * True when a request is a speculative fetch rather than a human opening the link.
+ *
+ * This matters because the app is served from the same origin as the tracking URLs, so a
+ * `next/link` to /r/... is an *internal* route: Next prefetches it as soon as it enters
+ * the viewport, and every prefetch would otherwise be recorded as a real scan. Browsers
+ * and link scanners speculate too (`Sec-Purpose: prefetch`, `Purpose: prefetch`).
+ *
+ * A prefetch still redirects normally -- it simply must not count as a scan.
+ */
+export function isPrefetchRequest(headers: Headers): boolean {
+  const secPurpose = headers.get("sec-purpose") ?? "";
+  if (secPurpose.includes("prefetch") || secPurpose.includes("prerender")) return true;
+
+  const purpose = headers.get("purpose") ?? headers.get("x-purpose") ?? "";
+  if (purpose.toLowerCase() === "prefetch") return true;
+
+  const moz = headers.get("x-moz") ?? "";
+  if (moz.toLowerCase() === "prefetch") return true;
+
+  // Next.js router signals: RSC payload requests and explicit prefetches are never a
+  // person tapping the link.
+  if (headers.get("next-router-prefetch")) return true;
+  if (headers.get("x-middleware-prefetch")) return true;
+  if (headers.get("rsc")) return true;
+
+  return false;
+}

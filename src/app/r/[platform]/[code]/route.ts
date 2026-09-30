@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { isValidTrackingCodeShape } from "@/lib/tracking-code";
-import { extractClientIp, parseUserAgent } from "@/lib/user-agent";
+import { extractClientIp, isPrefetchRequest, parseUserAgent } from "@/lib/user-agent";
 
 /**
  * PUBLIC QR redirect. No authentication.
@@ -75,6 +75,14 @@ export async function GET(
     const headers = request.headers;
     const userAgent = headers.get("user-agent");
     const parsed = parseUserAgent(userAgent);
+
+    // Speculative fetches are not scans. The admin UI is served from the same origin as
+    // these tracking URLs, so a link to /r/... is an internal route that Next prefetches
+    // on render -- without this guard, simply opening an assignment page would inflate
+    // its own scan count on every reload. Redirect normally, just do not record it.
+    if (isPrefetchRequest(headers)) {
+      return redirect(destination);
+    }
 
     // Rule 1: everything below runs AFTER the response is already on its way.
     after(async () => {

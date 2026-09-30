@@ -128,7 +128,14 @@ export default async function AmbassadorCampaignDetailPage({
                   <Download className="size-4" />
                   QR as SVG
                 </Button>
-                <Button variant="outline" size="sm" render={<Link href={trackingUrl} target="_blank" />}>
+                {/* A plain <a>, deliberately NOT next/link. The landing page is
+                    same-origin, so next/link would prefetch it on render and log a
+                    phantom registration view every time this page loads. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<a href={trackingUrl} target="_blank" rel="noopener noreferrer" />}
+                >
                   Open form
                 </Button>
                 <CampaignStatusActions campaignId={c.id} status={c.status} />
